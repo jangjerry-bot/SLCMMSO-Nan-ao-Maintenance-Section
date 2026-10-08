@@ -14,122 +14,185 @@ from PIL import Image
 
 # 1. 頁面設定
 st.set_page_config(
-    page_title="南澳段邊坡生命週期資料庫",
+    page_title="南澳段省道邊坡全生命週期資料庫",
     page_icon="⛰️",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# 2. 注入自訂樣式 (大標題、抽屜式隱藏導航選單、A/B/C/D 統計徽章)
-custom_css = """
+# 主題與狀態管理
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "🌙 深色黑底"
+if "bottom_tab" not in st.session_state:
+    st.session_state.bottom_tab = "📋 邊坡清冊"
+if "selected_slope_id" not in st.session_state:
+    st.session_state.selected_slope_id = None
+if "active_grade_detail" not in st.session_state:
+    st.session_state.active_grade_detail = None
+
+is_light = (st.session_state.theme_mode == "☀️ 淺色白底")
+plotly_font_color = "#0f172a" if is_light else "#f8fafc"
+
+# 2. 動態主題 CSS
+if is_light:
+    theme_vars = """
+        --bg-main: #f8fafc;
+        --text-main: #0f172a;
+        --text-muted: #475569;
+        --card-bg: #ffffff;
+        --card-border: #cbd5e1;
+        --btn-sec-bg: #e2e8f0;
+        --btn-sec-text: #0f172a;
+        --btn-sec-border: #94a3b8;
+        --footer-bg: #f1f5f9;
+        --footer-text: #4A6B82;
+        --footer-border: #cbd5e1;
+    """
+else:
+    theme_vars = """
+        --bg-main: #0b0f19;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+        --card-bg: rgba(255, 255, 255, 0.04);
+        --card-border: rgba(255, 255, 255, 0.12);
+        --btn-sec-bg: #1e293b;
+        --btn-sec-text: #f1f5f9;
+        --btn-sec-border: #334155;
+        --footer-bg: rgba(255, 255, 255, 0.03);
+        --footer-text: #4A6B82;
+        --footer-border: rgba(255, 255, 255, 0.08);
+    """
+
+custom_css = f"""
 <script>
     document.documentElement.setAttribute('translate', 'no');
     document.documentElement.classList.add('notranslate');
     document.body.setAttribute('translate', 'no');
     document.body.classList.add('notranslate');
-    const obs = new MutationObserver((mutations) => {
-        for (const m of mutations) {
-            for (const n of m.addedNodes) {
-                if (n.nodeType === 1 && (n.className && String(n.className).includes('immersive-translate'))) {
+    const obs = new MutationObserver((mutations) => {{
+        for (const m of mutations) {{
+            for (const n of m.addedNodes) {{
+                if (n.nodeType === 1 && (n.className && String(n.className).includes('immersive-translate'))) {{
                     n.remove();
-                }
-            }
-        }
-    });
-    obs.observe(document.documentElement, { childList: true, subtree: true });
+                }}
+            }}
+        }}
+    }});
+    obs.observe(document.documentElement, {{ childList: true, subtree: true }});
 </script>
 <style>
-    [class*="immersive-translate"], .immersive-translate-target-wrapper { display: none !important; height: 0 !important; }
-    #MainMenu, footer { visibility: hidden; }
-    .block-container { max-width: 860px !important; padding-top: 3.2rem !important; padding-bottom: 7.5rem !important; margin: 0 auto !important; }
+    :root {{
+        {theme_vars}
+    }}
+
+    .stApp {{
+        background-color: var(--bg-main) !important;
+        color: var(--text-main) !important;
+    }}
+
+    [class*="immersive-translate"], .immersive-translate-target-wrapper {{ display: none !important; height: 0 !important; }}
+    #MainMenu, footer {{ visibility: hidden; }}
     
-    /* 需求 1: 標題字體再加大、特粗莫蘭迪藍 */
-    .system-title {
-        font-size: 28px !important;
+    .block-container {{
+        max-width: 860px !important;
+        padding-top: 4.8rem !important;
+        padding-bottom: 4.5rem !important;
+        margin: 0 auto !important;
+    }}
+    
+    .system-title {{
+        font-size: 26px !important;
         line-height: 1.4 !important;
         font-weight: 900 !important;
-        letter-spacing: 1.5px;
+        letter-spacing: 1.2px;
         color: #4A6B82 !important;
         text-align: center !important;
         display: block !important;
         width: 100%;
-        margin-bottom: 20px;
-    }
+        margin-top: 4px !important;
+        margin-bottom: 18px !important;
+    }}
 
-    /* 需求 1: A B C D 級各幾處標籤容器 */
-    .summary-badge-container {
+    div[data-testid="stRadio"] label,
+    div[data-testid="stRadio"] p {{
+        color: var(--text-main) !important;
+        font-weight: 700 !important;
+        font-size: 14.5px !important;
+    }}
+
+    .app-card {{
+        background: var(--card-bg) !important;
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        border: 1px solid var(--card-border) !important;
+    }}
+    .detail-row {{
         display: flex;
-        flex-wrap: wrap;
-        align-items: center;
-        gap: 6px;
-        margin-top: 6px;
-        margin-bottom: 14px;
-        font-size: 13.5px;
-    }
-    .badge-stat {
-        display: inline-flex;
-        align-items: center;
-        padding: 2px 7px;
-        border-radius: 5px;
-        font-size: 12px;
-        font-weight: 700;
-        color: #ffffff;
-    }
-    .badge-stat-A { background-color: #c05646; }
-    .badge-stat-B { background-color: #d9822b; }
-    .badge-stat-C { background-color: #4A6B82; }
-    .badge-stat-D { background-color: #52796f; }
-    .badge-stat-other { background-color: #64748b; }
+        justify-content: space-between;
+        padding: 7px 0;
+        border-bottom: 1px solid var(--card-border) !important;
+        font-size: 14px;
+        line-height: 1.45;
+        color: var(--text-main) !important;
+    }}
+    .detail-label {{ color: var(--text-muted) !important; font-weight: 500; width: 40%; }}
+    .detail-value {{ font-weight: 600; width: 60%; text-align: right; word-break: break-all; color: var(--text-main) !important; }}
 
-    /* 需求 2: 隱藏式功能導航選單 (需要時由下而上浮出) */
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {
-        position: fixed !important;
-        bottom: 0px !important;
-        left: 0 !important;
-        right: 0 !important;
-        width: 100% !important;
-        max-width: 860px !important;
-        margin: 0 auto !important;
-        background: #111827 !important;
-        border-top: 2px solid #4A6B82 !important;
-        padding: 8px 10px 14px 10px !important;
-        z-index: 999999 !important;
-        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45) !important;
-        border-radius: 14px 14px 0 0 !important;
+    .badge {{
+        display: inline-block;
+        padding: 3px 9px;
+        border-radius: 6px;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: #ffffff !important;
+    }}
+    .badge-A {{ background-color: #c05646; }}
+    .badge-B {{ background-color: #d9822b; }}
+    .badge-C {{ background-color: #4A6B82; }}
+    .badge-D {{ background-color: #52796f; }}
+    .badge-其他 {{ background-color: #64748b; }}
+
+    .embed-map-box {{
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--card-border) !important;
+        margin: 12px 0;
+    }}
+
+    button[kind="secondary"] {{
+        background-color: var(--btn-sec-bg) !important;
+        color: var(--btn-sec-text) !important;
+        border: 1px solid var(--btn-sec-border) !important;
+        font-weight: 700 !important;
+    }}
+    button[kind="primary"] {{
+        background-color: #4A6B82 !important;
+        border-color: #3E5C76 !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+    }}
+
+    button[key="badge_btn_A"] {{ background-color: #c05646 !important; border: 1px solid #991b1b !important; color: #ffffff !important; font-weight: 800 !important; }}
+    button[key="badge_btn_B"] {{ background-color: #d9822b !important; border: 1px solid #c2410c !important; color: #ffffff !important; font-weight: 800 !important; }}
+    button[key="badge_btn_C"] {{ background-color: #2563eb !important; border: 1px solid #1d4ed8 !important; color: #ffffff !important; font-weight: 800 !important; }}
+    button[key="badge_btn_D"] {{ background-color: #059669 !important; border: 1px solid #047857 !important; color: #ffffff !important; font-weight: 800 !important; }}
+    button[key="badge_btn_其他"] {{ background-color: #475569 !important; border: 1px solid #334155 !important; color: #ffffff !important; font-weight: 800 !important; }}
+
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {{
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         gap: 6px !important;
-        transform: translateY(68%) !important;
-        transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]):hover,
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]):focus-within {
-        transform: translateY(0%) !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"])::before {
-        content: '▲ 功能選單 (點擊或移入浮出) ▲' !important;
-        position: absolute !important;
-        top: -24px !important;
-        left: 50% !important;
-        transform: translateX(-50%) !important;
-        background: #1e293b !important;
-        color: #94a3b8 !important;
-        font-size: 11px !important;
-        font-weight: 700 !important;
-        padding: 2px 14px !important;
-        border-radius: 8px 8px 0 0 !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        border-bottom: none !important;
-        cursor: pointer !important;
-        letter-spacing: 0.5px !important;
-    }
-
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) > div {
+        width: 100% !important;
+        margin-top: 20px !important;
+        margin-bottom: 12px !important;
+    }}
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) > div {{
         flex: 1 1 25% !important;
         min-width: 0 !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) button {
+    }}
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) button {{
         padding-left: 2px !important;
         padding-right: 2px !important;
         font-size: 13px !important;
@@ -137,62 +200,82 @@ custom_css = """
         overflow: hidden !important;
         text-overflow: ellipsis !important;
         height: 38px !important;
-    }
+    }}
 
-    button[kind="primary"] { background-color: #4A6B82 !important; border-color: #3E5C76 !important; color: #ffffff !important; font-weight: 700 !important; }
-    .app-card { background: rgba(255, 255, 255, 0.04); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
-    .detail-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 14px; line-height: 1.45; }
-    .detail-label { color: #94a3b8; font-weight: 500; width: 40%; }
-    .detail-value { font-weight: 600; width: 60%; text-align: right; word-break: break-all; }
-    .badge { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 11.5px; font-weight: 700; color: #ffffff; }
-    .badge-A { background-color: #c05646; }
-    .badge-B { background-color: #d9822b; }
-    .badge-C { background-color: #4A6B82; }
-    .badge-D { background-color: #52796f; }
-    .badge-其他 { background-color: #64748b; }
-    .embed-map-box { border-radius: 12px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.15); margin: 12px 0; }
-
-    /* 需求 1: LOGO 與署名移到功能列正下方 */
-    .app-official-footer-bottom {
+    .app-official-footer-bottom {{
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        margin-top: 18px !important;
+        margin-top: 14px !important;
         margin-bottom: 24px !important;
-        padding: 10px 14px !important;
-        background: rgba(255, 255, 255, 0.03) !important;
+        padding: 12px 14px !important;
+        background: var(--footer-bg) !important;
         border-radius: 10px !important;
-        border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    }
-    .footer-title-row {
+        border: 1px solid var(--footer-border) !important;
+    }}
+    .footer-title-row {{
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
         gap: 8px !important;
-    }
-    .app-official-logo { height: 22px !important; width: auto !important; display: inline-block !important; vertical-align: middle !important; }
-    .app-official-text {
+    }}
+    .app-official-logo {{ height: 22px !important; width: auto !important; display: inline-block !important; vertical-align: middle !important; }}
+    .app-official-text {{
         font-size: 13.5px !important;
         font-weight: 800 !important;
-        color: #4A6B82 !important;
+        color: var(--footer-text) !important;
         letter-spacing: 0.5px !important;
         white-space: nowrap !important;
         line-height: 22px !important;
-    }
-    .app-official-source {
+    }}
+    .app-official-source {{
         font-size: 11px !important;
         font-weight: 500 !important;
-        color: #94a3b8 !important;
+        color: var(--text-muted) !important;
         margin-top: 4px !important;
         letter-spacing: 0.4px !important;
-    }
+    }}
 </style>
 """
 st.markdown(custom_css, unsafe_allow_html=True)
 
+# 頂部色彩模式切換
+col_top_space, col_top_theme = st.columns([0.65, 0.35])
+with col_top_theme:
+    selected_theme = st.radio(
+        "色彩模式",
+        ["🌙 深色黑底", "☀️ 淺色白底"],
+        index=0 if st.session_state.theme_mode == "🌙 深色黑底" else 1,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    if selected_theme != st.session_state.theme_mode:
+        st.session_state.theme_mode = selected_theme
+        st.rerun()
+
 DATA_FILE = "邊坡資料.xlsx" if os.path.exists("邊坡資料.xlsx") else "1.邊坡資料(11505).xlsx"
 KMZ_FILE = "南澳段歷次災害-(更新斑點圖使用).kmz"
+
+# 定量分級標準化轉換函式（自動識別 1~5、1.0、第一級、第1級等）
+def normalize_quant(val):
+    if pd.isna(val):
+        return "未施作"
+    s = str(val).strip()
+    if s in ["", "nan", "None", "未施作", "未施作定量評估", "無"]:
+        return "未施作"
+    # 判斷是否為 1~5 或 一~五
+    if any(x in s for x in ["1", "一", "第1級", "第一級"]):
+        return "第1級"
+    if any(x in s for x in ["2", "二", "第2級", "第二級"]):
+        return "第2級"
+    if any(x in s for x in ["3", "三", "第3級", "第三級"]):
+        return "第3級"
+    if any(x in s for x in ["4", "四", "第4級", "第四級"]):
+        return "第4級"
+    if any(x in s for x in ["5", "五", "第5級", "第五級"]):
+        return "第5級"
+    return "未施作"
 
 # 3. 讀取 Excel 資料
 @st.cache_data
@@ -203,7 +286,12 @@ def load_data():
     df['起點緯度'] = pd.to_numeric(df['起點緯度'], errors='coerce')
     df['起點經度'] = pd.to_numeric(df['起點經度'], errors='coerce')
     df['定性分級'] = df['定性分級'].fillna('其他').astype(str).str.strip()
-    df['定量分級'] = df['定量分級'].fillna('未施作定量評估').astype(str).str.strip()
+    
+    # 標準化定量分級
+    if '定量分級' in df.columns:
+        df['定量分級'] = df['定量分級'].apply(normalize_quant)
+    else:
+        df['定量分級'] = "未施作"
     return df
 
 # 4. 讀取 KMZ 歷次災害斑點
@@ -252,12 +340,6 @@ if df.empty:
     st.error(f"找不到邊坡資料檔案：{DATA_FILE}")
     st.stop()
 
-# 狀態管理
-if "bottom_tab" not in st.session_state:
-    st.session_state.bottom_tab = "📋 邊坡清冊"
-if "selected_slope_id" not in st.session_state:
-    st.session_state.selected_slope_id = None
-
 # 子頁面頂部返回鍵
 is_sub_view = (st.session_state.bottom_tab != "📋 邊坡清冊") or (st.session_state.selected_slope_id is not None)
 if is_sub_view:
@@ -284,8 +366,8 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 f"<span style='font-size:19px; font-weight:700;'>📍 {row['路線']} {row['里程樁號(起)']}</span>"
                 f"<span class='badge badge-{q_grade}'>{q_grade} 級</span>"
                 "</div>"
-                f"<div style='font-family:monospace; font-size:12.5px; color:#94a3b8; margin-top:3px;'>{row['口卡編號']}</div>"
-                f"<div style='font-size:12px; color:#94a3b8; margin-top:2px;'>最近更新：{row.get('最近更新時間', '無')}</div>"
+                f"<div style='font-family:monospace; font-size:12.5px; color:var(--text-muted); margin-top:3px;'>{row['口卡編號']}</div>"
+                f"<div style='font-size:12px; color:var(--text-muted); margin-top:2px;'>最近更新：{row.get('最近更新時間', '無')}</div>"
                 f"<div style='font-size:14px; font-weight:600; color:#4A6B82; margin-top:4px;'>構造物：{row.get('邊坡構造物', '自然邊坡')}</div>"
                 "</div>"
             )
@@ -330,7 +412,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 ("坡度", f"{row.get('坡度', '')}°" if pd.notna(row.get('坡度')) else "無"),
                 ("專案列管案件", str(row.get('專案列管案件', '無'))),
                 ("定性分級", f"{q_grade} 級"),
-                ("定量分級", str(row.get('定量分級', '未施作定量評估'))),
+                ("定量分級", str(row.get('定量分級', '未施作'))),
                 ("災害歷史", str(row.get('災害歷史', '無'))),
                 ("資料建立日期", str(row.get('資料建立日期', '無'))),
                 ("監測情形", str(row.get('監測情形', '無'))),
@@ -400,8 +482,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
 
     # --- 主清單列表模式 ---
     else:
-        # 需求 1: 標題字體再加大
-        st.markdown("<div class='system-title notranslate' translate='no'>南澳段邊坡生命週期資料庫</div>", unsafe_allow_html=True)
+        st.markdown("<div class='system-title notranslate' translate='no'>南澳段省道邊坡全生命週期資料庫</div>", unsafe_allow_html=True)
 
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -425,7 +506,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 f_df['附近地名'].astype(str).str.contains(search_kw, case=False)
             ]
 
-        # 需求 1: 動態列出 A B C D 級各幾處
+        # 統計數量
         q_counts = f_df['定性分級'].value_counts()
         cnt_a = q_counts.get("A", 0)
         cnt_b = q_counts.get("B", 0)
@@ -433,17 +514,46 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
         cnt_d = q_counts.get("D", 0)
         cnt_o = q_counts.get("其他", 0)
 
-        summary_html = f"""
-        <div class="summary-badge-container notranslate" translate="no">
-            <span style="color:#cbd5e1; font-weight:600;">符合條件邊坡：<b>{len(f_df)}</b> 處 (總資產：{len(df)}) ➔ </span>
-            <span class="badge-stat badge-stat-A">A級 {cnt_a} 處</span>
-            <span class="badge-stat badge-stat-B">B級 {cnt_b} 處</span>
-            <span class="badge-stat badge-stat-C">C級 {cnt_c} 處</span>
-            <span class="badge-stat badge-stat-D">D級 {cnt_d} 處</span>
-            <span class="badge-stat badge-stat-other">其他 {cnt_o} 處</span>
-        </div>
-        """
-        st.markdown(summary_html, unsafe_allow_html=True)
+        st.caption(f"符合條件邊坡：**{len(f_df)}** 處（總資產：{len(df)} 處） 點擊下方各級按鈕查看對應樁號：")
+
+        # 5 顆高對比彩色分級按鈕
+        b_cols = st.columns(5)
+        with b_cols[0]:
+            if st.button(f"A級 ({cnt_a})", key="badge_btn_A", use_container_width=True):
+                st.session_state.active_grade_detail = "A" if st.session_state.active_grade_detail != "A" else None
+                st.rerun()
+        with b_cols[1]:
+            if st.button(f"B級 ({cnt_b})", key="badge_btn_B", use_container_width=True):
+                st.session_state.active_grade_detail = "B" if st.session_state.active_grade_detail != "B" else None
+                st.rerun()
+        with b_cols[2]:
+            if st.button(f"C級 ({cnt_c})", key="badge_btn_C", use_container_width=True):
+                st.session_state.active_grade_detail = "C" if st.session_state.active_grade_detail != "C" else None
+                st.rerun()
+        with b_cols[3]:
+            if st.button(f"D級 ({cnt_d})", key="badge_btn_D", use_container_width=True):
+                st.session_state.active_grade_detail = "D" if st.session_state.active_grade_detail != "D" else None
+                st.rerun()
+        with b_cols[4]:
+            if st.button(f"其他 ({cnt_o})", key="badge_btn_其他", use_container_width=True):
+                st.session_state.active_grade_detail = "其他" if st.session_state.active_grade_detail != "其他" else None
+                st.rerun()
+
+        # 點擊級數按鈕後展開詳細樁號
+        if st.session_state.active_grade_detail:
+            selected_grade = st.session_state.active_grade_detail
+            grade_sub_df = f_df[f_df['定性分級'] == selected_grade]
+            with st.container(border=True):
+                st.markdown(f"**📌【{selected_grade} 級】邊坡樁號清冊（共 {len(grade_sub_df)} 處，點擊直達詳情）：**")
+                g_cols = st.columns(2)
+                for idx, (_, g_row) in enumerate(grade_sub_df.iterrows()):
+                    with g_cols[idx % 2]:
+                        g_label = f"📍 {g_row['路線']} {g_row['里程樁號(起)']}"
+                        if st.button(g_label, key=f"quick_pick_{g_row['口卡編號']}", use_container_width=True):
+                            st.session_state.selected_slope_id = g_row['口卡編號']
+                            st.rerun()
+
+        st.markdown("<hr style='margin: 12px 0 16px 0; border: none; border-top: 1px solid var(--card-border);' />", unsafe_allow_html=True)
 
         for r_name in f_df['路線'].dropna().unique():
             sub_df = f_df[f_df['路線'] == r_name]
@@ -467,7 +577,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                         st.caption(f"卡號：`{r['口卡編號']}` ｜ 構造：`{r.get('邊坡構造物', '自然邊坡')[:18]}`")
 
 # ==============================================================================
-# 頁面 2：定量定性分級統計分析
+# 頁面 2：定量定性分級統計分析 (標準化支援 第1級 ~ 第5級)
 # ==============================================================================
 elif st.session_state.bottom_tab == "📊 定量定性":
     st.markdown("<div class='system-title notranslate' translate='no'>邊坡定量定性分級統計</div>", unsafe_allow_html=True)
@@ -475,7 +585,7 @@ elif st.session_state.bottom_tab == "📊 定量定性":
     chart_type = st.radio("📈 圖表呈現模式", ["圓餅圖 (Pie Chart)", "長條圖 (Bar Chart)"], horizontal=True)
 
     # 1. 定性分級
-    st.markdown("<div class='notranslate' translate='no' style='font-size:16.5px; font-weight:700; color:#e2e8f0; margin-top:8px; margin-bottom:6px;'>1. 定性分級統計 (A, B, C, D, 其他)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='notranslate' translate='no' style='font-size:16.5px; font-weight:700; color:var(--text-main); margin-top:8px; margin-bottom:6px;'>1. 定性分級統計 (A, B, C, D, 其他)</div>", unsafe_allow_html=True)
     qual_order = ["A", "B", "C", "D", "其他"]
     c_counts = df['定性分級'].value_counts()
     qual_df = pd.DataFrame({"分級": qual_order, "數量": [c_counts.get(c, 0) for c in qual_order]})
@@ -488,8 +598,20 @@ elif st.session_state.bottom_tab == "📊 定量定性":
             color_discrete_map=qual_color_map,
             category_orders={"分級": qual_order}
         )
-        fig_qual.update_traces(textposition='inside', textinfo='percent+label+value', sort=False)
-        fig_qual.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=310)
+        fig_qual.update_traces(
+            textposition='inside',
+            textinfo='percent+label+value',
+            insidetextfont=dict(color="#ffffff", size=13),
+            sort=False
+        )
+        fig_qual.update_layout(
+            margin=dict(l=10, r=10, t=10, b=10),
+            height=310,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color=plotly_font_color),
+            legend=dict(font=dict(color=plotly_font_color, size=13))
+        )
         st.plotly_chart(fig_qual, use_container_width=True)
     else:
         fig_qual = px.bar(
@@ -498,43 +620,80 @@ elif st.session_state.bottom_tab == "📊 定量定性":
             color_discrete_map=qual_color_map,
             category_orders={"分級": qual_order}
         )
-        fig_qual.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=290)
+        fig_qual.update_traces(textposition='outside')
+        fig_qual.update_layout(
+            margin=dict(l=10, r=10, t=10, b=10),
+            height=290,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color=plotly_font_color),
+            xaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)),
+            yaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)),
+            legend=dict(font=dict(color=plotly_font_color))
+        )
         st.plotly_chart(fig_qual, use_container_width=True)
 
-    st.markdown("<hr style='margin: 18px 0; border: none; border-top: 1px solid rgba(255,255,255,0.08);' />", unsafe_allow_html=True)
+    st.markdown("<hr style='margin: 18px 0; border: none; border-top: 1px solid var(--card-border);' />", unsafe_allow_html=True)
 
-    # 2. 定量分級
-    st.markdown("<div class='notranslate' translate='no' style='font-size:16.5px; font-weight:700; color:#e2e8f0; margin-top:8px; margin-bottom:6px;'>2. 定量分級統計 (第1級 ~ 第5級 / 未施作)</div>", unsafe_allow_html=True)
+    # 2. 定量分級（嚴格依序排：第1級 -> 第2級 -> 第3級 -> 第4級 -> 第5級 -> 未施作）
+    st.markdown("<div class='notranslate' translate='no' style='font-size:16.5px; font-weight:700; color:var(--text-main); margin-top:8px; margin-bottom:6px;'>2. 定量分級統計 (第1級 ~ 第5級 / 未施作)</div>", unsafe_allow_html=True)
     
-    quant_order = ["第一級", "第二級", "第三級", "第四級", "第五級", "未施作定量評估"]
-    existing_quants = df['定量分級'].unique()
-    alt_order = []
-    for q in quant_order:
-        matched_name = [x for x in existing_quants if q in str(x) or q.replace("第", "").replace("級", "") in str(x)]
-        if matched_name:
-            alt_order.append(matched_name[0])
-        else:
-            alt_order.append(q)
+    quant_order = ["第1級", "第2級", "第3級", "第4級", "第5級", "未施作"]
+    quant_color_map = {
+        "第1級": "#1e40af",  # 深藍
+        "第2級": "#3b82f6",  # 亮藍
+        "第3級": "#f97316",  # 橘紅
+        "第4級": "#ef4444",  # 紅色
+        "第5級": "#b91c1c",  # 深紅
+        "未施作": "#10b981"  # 綠色
+    }
     
     q_counts = df['定量分級'].value_counts()
-    quant_df = pd.DataFrame({"定量分級": alt_order, "數量": [q_counts.get(c, 0) for c in alt_order]})
+    quant_df = pd.DataFrame({
+        "定量分級": quant_order,
+        "數量": [q_counts.get(c, 0) for c in quant_order]
+    })
 
     if "圓餅圖" in chart_type:
         fig_quant = px.pie(
             quant_df, values='數量', names='定量分級', hole=0.45,
             color='定量分級',
-            category_orders={"定量分級": alt_order}
+            color_discrete_map=quant_color_map,
+            category_orders={"定量分級": quant_order}
         )
-        fig_quant.update_traces(textposition='inside', textinfo='percent+label+value', sort=False)
-        fig_quant.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=310)
+        fig_quant.update_traces(
+            textposition='inside',
+            textinfo='percent+label+value',
+            insidetextfont=dict(color="#ffffff", size=13),
+            sort=False
+        )
+        fig_quant.update_layout(
+            margin=dict(l=10, r=10, t=10, b=10),
+            height=310,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color=plotly_font_color),
+            legend=dict(font=dict(color=plotly_font_color, size=13))
+        )
         st.plotly_chart(fig_quant, use_container_width=True)
     else:
         fig_quant = px.bar(
             quant_df, x="定量分級", y="數量", text="數量",
             color="定量分級",
-            category_orders={"定量分級": alt_order}
+            color_discrete_map=quant_color_map,
+            category_orders={"定量分級": quant_order}
         )
-        fig_quant.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=290)
+        fig_quant.update_traces(textposition='outside')
+        fig_quant.update_layout(
+            margin=dict(l=10, r=10, t=10, b=10),
+            height=290,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color=plotly_font_color),
+            xaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)),
+            yaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)),
+            legend=dict(font=dict(color=plotly_font_color))
+        )
         st.plotly_chart(fig_quant, use_container_width=True)
 
 # ==============================================================================
@@ -667,7 +826,7 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         st_folium(m_dis, width="100%", height=530)
 
 # ==============================================================================
-# 5. 底部 4 功能導航條 (需求 2: 隱藏式抽屜，平時收合，需要時由下而上浮出)
+# 5. 4 個功能鍵：橫式排列，位於內容與 LOGO 之間
 # ==============================================================================
 nav_cols = st.columns(4)
 with nav_cols[0]:
@@ -694,7 +853,7 @@ with nav_cols[3]:
         st.rerun()
 
 # ==============================================================================
-# 6. 需求 1: LOGO 與單位全稱移到功能列正下方 (頁面最底部)
+# 6. 單位識別頁尾：保持在全頁面最底端
 # ==============================================================================
 LOGO_VECTOR_SVG = (
     "<svg class='app-official-logo notranslate' viewBox='0 0 818 138' fill='none' xmlns='http://www.w3.org/2000/svg' translate='no'>"
