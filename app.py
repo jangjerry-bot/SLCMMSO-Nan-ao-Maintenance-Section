@@ -10,7 +10,11 @@ import zipfile
 import xml.etree.ElementTree as ET
 import re
 import base64
+import threading
 from PIL import Image
+
+# 全域檔案排他鎖：確保多位同仁同時操作時依序寫入，徹底杜絕 Excel 檔案衝突損毀
+EXCEL_LOCK = threading.Lock()
 
 # 1. 頁面設定
 st.set_page_config(
@@ -93,6 +97,7 @@ custom_css = f"""
     [class*="immersive-translate"], .immersive-translate-target-wrapper {{ display: none !important; height: 0 !important; }}
     #MainMenu, footer {{ visibility: hidden; }}
     
+    /* 頂部預留充足安全間距，避開右上角 Deploy 按鈕 */
     .block-container {{
         max-width: 860px !important;
         padding-top: 4.8rem !important;
@@ -173,12 +178,14 @@ custom_css = f"""
         font-weight: 700 !important;
     }}
 
+    /* A B C D 級高對比實體按鈕 */
     button[key="badge_btn_A"] {{ background-color: #c05646 !important; border: 1px solid #991b1b !important; color: #ffffff !important; font-weight: 800 !important; }}
     button[key="badge_btn_B"] {{ background-color: #d9822b !important; border: 1px solid #c2410c !important; color: #ffffff !important; font-weight: 800 !important; }}
     button[key="badge_btn_C"] {{ background-color: #2563eb !important; border: 1px solid #1d4ed8 !important; color: #ffffff !important; font-weight: 800 !important; }}
     button[key="badge_btn_D"] {{ background-color: #059669 !important; border: 1px solid #047857 !important; color: #ffffff !important; font-weight: 800 !important; }}
     button[key="badge_btn_其他"] {{ background-color: #475569 !important; border: 1px solid #334155 !important; color: #ffffff !important; font-weight: 800 !important; }}
 
+    /* 4 個功能鍵容器：排在清冊下方、LOGO上方，手機端強制單行 */
     div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {{
         display: flex !important;
         flex-direction: row !important;
@@ -202,6 +209,7 @@ custom_css = f"""
         height: 38px !important;
     }}
 
+    /* 單位識別頁尾：保持在全頁面最底端 */
     .app-official-footer-bottom {{
         display: flex !important;
         flex-direction: column !important;
@@ -264,7 +272,6 @@ def normalize_quant(val):
     s = str(val).strip()
     if s in ["", "nan", "None", "未施作", "未施作定量評估", "無"]:
         return "未施作"
-    # 判斷是否為 1~5 或 一~五
     if any(x in s for x in ["1", "一", "第1級", "第一級"]):
         return "第1級"
     if any(x in s for x in ["2", "二", "第2級", "第二級"]):
@@ -287,7 +294,6 @@ def load_data():
     df['起點經度'] = pd.to_numeric(df['起點經度'], errors='coerce')
     df['定性分級'] = df['定性分級'].fillna('其他').astype(str).str.strip()
     
-    # 標準化定量分級
     if '定量分級' in df.columns:
         df['定量分級'] = df['定量分級'].apply(normalize_quant)
     else:
@@ -431,7 +437,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
             )
             st.markdown(desc_html, unsafe_allow_html=True)
 
-            # 構造物分項巡查 Form
+            # 構造物分項巡查 Form（具名化 + 防覆蓋機制）
             st.markdown("##### 📝 構造物分項巡查回報")
             raw_structs = str(row.get('邊坡構造物', '自然邊坡'))
             split_structs = [s.strip() for s in re.split(r'[,、]', raw_structs) if s.strip()]
@@ -440,45 +446,69 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
             split_structs.append("＋ 整體邊坡現況")
 
             with st.form("inspect_form"):
+                inspector_name = st.text_input("👤 巡查人員姓名 / 職稱 (必填)", placeholder="例如：張工程師")
                 selected_struct = st.selectbox("構造物項目", split_structs)
                 c_st, c_qu = st.columns(2)
                 with c_st:
                     new_status = st.selectbox("邊坡管理狀態", ["鎖定管理中", "解除列管", "重點列管"])
                 with c_qu:
-                    new_qual = st.selectbox("定性分級調整", ["A", "B", "C", "D", "其他"], index=["A","B","C","D","其他"].index(q_grade) if q_grade in ["A","B","C","D","其他"] else 4)
+                    new_qual = st.selectbox("定性分級調整", ["A", "B", "C", "D", "其他"], index=["A","B","C","D","字體"].index(q_grade) if q_grade in ["A","B","C","D","其他"] else 4)
 
                 struct_desc = st.text_area(f"【{selected_struct}】現地狀況描述", placeholder="請輸入現況描述...")
                 up_photos = st.file_uploader("選取照片 (支援一次多張)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
                 cam_photo = st.camera_input("開啟相機拍照")
 
-                if st.form_submit_button("💾 儲存並寫入 Excel", type="primary", use_container_width=True):
-                    os.makedirs("inspection_photos", exist_ok=True)
-                    t_now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                    s_count = 0
-                    if up_photos:
-                        for idx, p in enumerate(up_photos):
+                if st.form_submit_button("💾 儲存並寫入 Excel (具備防衝突鎖定)", type="primary", use_container_width=True):
+                    if not inspector_name.strip():
+                        st.error("⚠️ 請填寫巡查人員姓名，以便確認異動責任歸屬！")
+                    else:
+                        os.makedirs("inspection_photos", exist_ok=True)
+                        t_now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        s_count = 0
+                        if up_photos:
+                            for idx, p in enumerate(up_photos):
+                                c_s = selected_struct.replace(":", "_").replace("/", "_")
+                                Image.open(p).save(f"inspection_photos/{row['口卡編號']}_{c_s}_{t_now}_{idx+1}.jpg")
+                                s_count += 1
+                        if cam_photo:
                             c_s = selected_struct.replace(":", "_").replace("/", "_")
-                            Image.open(p).save(f"inspection_photos/{row['口卡編號']}_{c_s}_{t_now}_{idx+1}.jpg")
+                            Image.open(cam_photo).save(f"inspection_photos/{row['口卡編號']}_{c_s}_{t_now}_cam.jpg")
                             s_count += 1
-                    if cam_photo:
-                        c_s = selected_struct.replace(":", "_").replace("/", "_")
-                        Image.open(cam_photo).save(f"inspection_photos/{row['口卡編號']}_{c_s}_{t_now}_cam.jpg")
-                        s_count += 1
 
-                    old_desc = str(row.get('現地狀況描述', '')) if pd.notna(row.get('現地狀況描述')) else ""
-                    new_entry = f"[{datetime.date.today().strftime('%m/%d')} {selected_struct}] {struct_desc}" if struct_desc else ""
-                    combined_desc = (new_entry + "\n" + old_desc).strip() if new_entry else old_desc
+                        # 具名記錄文字
+                        date_str = datetime.date.today().strftime('%m/%d')
+                        new_entry = f"[{date_str} {inspector_name.strip()} {selected_struct}] {struct_desc}" if struct_desc else ""
 
-                    df.loc[df['口卡編號'] == row['口卡編號'], '定性分級'] = new_qual
-                    df.loc[df['口卡編號'] == row['口卡編號'], '邊坡狀態'] = new_status
-                    if combined_desc:
-                        df.loc[df['口卡編號'] == row['口卡編號'], '現地狀況描述'] = combined_desc
-                    df.loc[df['口卡編號'] == row['口卡編號'], '最近更新時間'] = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+                        # ===== 核心安全防護機制：加鎖 + 讀取硬碟最新版本進行局部修改 =====
+                        with EXCEL_LOCK:
+                            # 1. 重新由硬碟讀取最新 Excel（避免多人編輯覆蓋他人剛送出的資料）
+                            latest_df = pd.read_excel(DATA_FILE)
+                            
+                            # 2. 定位該筆口卡紀錄並合併描述
+                            target_mask = (latest_df['口卡編號'] == row['口卡編號'])
+                            if target_mask.any():
+                                old_rec = latest_df.loc[target_mask].iloc[0]
+                                old_desc = str(old_rec.get('現地狀況描述', '')) if pd.notna(old_rec.get('現地狀況描述')) else ""
+                                combined_desc = (new_entry + "\n" + old_desc).strip() if new_entry else old_desc
 
-                    df.to_excel(DATA_FILE, index=False)
-                    st.cache_data.clear()
-                    st.success(f"✅ 成功更新【{selected_struct}】（儲存 {s_count} 張照片）")
-                    st.rerun()
+                                latest_df.loc[target_mask, '定性分級'] = new_qual
+                                latest_df.loc[target_mask, '邊坡狀態'] = new_status
+                                if combined_desc:
+                                    latest_df.loc[target_mask, '現地狀況描述'] = combined_desc
+                                latest_df.loc[target_mask, '最近更新時間'] = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+
+                                # 3. 寫入主檔案
+                                latest_df.to_excel(DATA_FILE, index=False)
+                                
+                                # 4. 自動備份歷史機制（依照日期備份）
+                                os.makedirs("backups", exist_ok=True)
+                                backup_filename = f"backups/邊坡資料_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx"
+                                latest_df.to_excel(backup_filename, index=False)
+
+                        # 5. 清除快取並重整頁面
+                        st.cache_data.clear()
+                        st.success(f"✅ 成功更新【{selected_struct}】（儲存 {s_count} 張照片，已自動留存異動備份）")
+                        st.rerun()
 
     # --- 主清單列表模式 ---
     else:
@@ -635,17 +665,17 @@ elif st.session_state.bottom_tab == "📊 定量定性":
 
     st.markdown("<hr style='margin: 18px 0; border: none; border-top: 1px solid var(--card-border);' />", unsafe_allow_html=True)
 
-    # 2. 定量分級（嚴格依序排：第1級 -> 第2級 -> 第3級 -> 第4級 -> 第5級 -> 未施作）
+    # 2. 定量分級
     st.markdown("<div class='notranslate' translate='no' style='font-size:16.5px; font-weight:700; color:var(--text-main); margin-top:8px; margin-bottom:6px;'>2. 定量分級統計 (第1級 ~ 第5級 / 未施作)</div>", unsafe_allow_html=True)
     
     quant_order = ["第1級", "第2級", "第3級", "第4級", "第5級", "未施作"]
     quant_color_map = {
-        "第1級": "#1e40af",  # 深藍
-        "第2級": "#3b82f6",  # 亮藍
-        "第3級": "#f97316",  # 橘紅
-        "第4級": "#ef4444",  # 紅色
-        "第5級": "#b91c1c",  # 深紅
-        "未施作": "#10b981"  # 綠色
+        "第1級": "#1e40af",
+        "第2級": "#3b82f6",
+        "第3級": "#f97316",
+        "第4級": "#ef4444",
+        "第5級": "#b91c1c",
+        "未施作": "#10b981"
     }
     
     q_counts = df['定量分級'].value_counts()
