@@ -20,8 +20,8 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. 注入自訂樣式與防外掛注入
-st.markdown("""
+# 2. 注入自訂樣式 (大標題、抽屜式隱藏導航選單、A/B/C/D 統計徽章)
+custom_css = """
 <script>
     document.documentElement.setAttribute('translate', 'no');
     document.documentElement.classList.add('notranslate');
@@ -41,9 +41,105 @@ st.markdown("""
 <style>
     [class*="immersive-translate"], .immersive-translate-target-wrapper { display: none !important; height: 0 !important; }
     #MainMenu, footer { visibility: hidden; }
-    .block-container { max-width: 860px !important; padding-top: 4.2rem !important; padding-bottom: 4.5rem !important; margin: 0 auto !important; }
-    .system-title { font-size: 22px !important; line-height: 1.6 !important; font-weight: 800; letter-spacing: 1px; color: #4A6B82 !important; text-align: center !important; display: block !important; width: 100%; margin-bottom: 18px; }
-    button[kind="primary"] { background-color: #4A6B82 !important; border-color: #3E5C76 !important; color: #ffffff !important; font-weight: 600 !important; }
+    .block-container { max-width: 860px !important; padding-top: 3.2rem !important; padding-bottom: 7.5rem !important; margin: 0 auto !important; }
+    
+    /* 需求 1: 標題字體再加大、特粗莫蘭迪藍 */
+    .system-title {
+        font-size: 28px !important;
+        line-height: 1.4 !important;
+        font-weight: 900 !important;
+        letter-spacing: 1.5px;
+        color: #4A6B82 !important;
+        text-align: center !important;
+        display: block !important;
+        width: 100%;
+        margin-bottom: 20px;
+    }
+
+    /* 需求 1: A B C D 級各幾處標籤容器 */
+    .summary-badge-container {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        margin-top: 6px;
+        margin-bottom: 14px;
+        font-size: 13.5px;
+    }
+    .badge-stat {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 7px;
+        border-radius: 5px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #ffffff;
+    }
+    .badge-stat-A { background-color: #c05646; }
+    .badge-stat-B { background-color: #d9822b; }
+    .badge-stat-C { background-color: #4A6B82; }
+    .badge-stat-D { background-color: #52796f; }
+    .badge-stat-other { background-color: #64748b; }
+
+    /* 需求 2: 隱藏式功能導航選單 (需要時由下而上浮出) */
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {
+        position: fixed !important;
+        bottom: 0px !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        max-width: 860px !important;
+        margin: 0 auto !important;
+        background: #111827 !important;
+        border-top: 2px solid #4A6B82 !important;
+        padding: 8px 10px 14px 10px !important;
+        z-index: 999999 !important;
+        box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45) !important;
+        border-radius: 14px 14px 0 0 !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: 6px !important;
+        transform: translateY(68%) !important;
+        transition: transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1) !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]):hover,
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]):focus-within {
+        transform: translateY(0%) !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"])::before {
+        content: '▲ 功能選單 (點擊或移入浮出) ▲' !important;
+        position: absolute !important;
+        top: -24px !important;
+        left: 50% !important;
+        transform: translateX(-50%) !important;
+        background: #1e293b !important;
+        color: #94a3b8 !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        padding: 2px 14px !important;
+        border-radius: 8px 8px 0 0 !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-bottom: none !important;
+        cursor: pointer !important;
+        letter-spacing: 0.5px !important;
+    }
+
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) > div {
+        flex: 1 1 25% !important;
+        min-width: 0 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) button {
+        padding-left: 2px !important;
+        padding-right: 2px !important;
+        font-size: 13px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        height: 38px !important;
+    }
+
+    button[kind="primary"] { background-color: #4A6B82 !important; border-color: #3E5C76 !important; color: #ffffff !important; font-weight: 700 !important; }
     .app-card { background: rgba(255, 255, 255, 0.04); border-radius: 12px; padding: 14px 16px; margin-bottom: 12px; border: 1px solid rgba(255, 255, 255, 0.1); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
     .detail-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.06); font-size: 14px; line-height: 1.45; }
     .detail-label { color: #94a3b8; font-weight: 500; width: 40%; }
@@ -55,11 +151,45 @@ st.markdown("""
     .badge-D { background-color: #52796f; }
     .badge-其他 { background-color: #64748b; }
     .embed-map-box { border-radius: 12px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.15); margin: 12px 0; }
-    .app-official-footer { display: flex !important; align-items: center !important; justify-content: center !important; gap: 12px !important; margin-top: 22px !important; margin-bottom: 16px !important; padding: 12px 16px !important; background: rgba(255, 255, 255, 0.04) !important; border-radius: 10px !important; border: 1px solid rgba(255, 255, 255, 0.08) !important; }
-    .app-official-logo { height: 28px !important; width: auto !important; display: inline-block !important; vertical-align: middle !important; }
-    .app-official-text { font-size: 14px !important; font-weight: 600 !important; color: #f1f5f9 !important; letter-spacing: 0.6px !important; white-space: nowrap !important; line-height: 28px !important; vertical-align: middle !important; }
+
+    /* 需求 1: LOGO 與署名移到功能列正下方 */
+    .app-official-footer-bottom {
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        margin-top: 18px !important;
+        margin-bottom: 24px !important;
+        padding: 10px 14px !important;
+        background: rgba(255, 255, 255, 0.03) !important;
+        border-radius: 10px !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    }
+    .footer-title-row {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 8px !important;
+    }
+    .app-official-logo { height: 22px !important; width: auto !important; display: inline-block !important; vertical-align: middle !important; }
+    .app-official-text {
+        font-size: 13.5px !important;
+        font-weight: 800 !important;
+        color: #4A6B82 !important;
+        letter-spacing: 0.5px !important;
+        white-space: nowrap !important;
+        line-height: 22px !important;
+    }
+    .app-official-source {
+        font-size: 11px !important;
+        font-weight: 500 !important;
+        color: #94a3b8 !important;
+        margin-top: 4px !important;
+        letter-spacing: 0.4px !important;
+    }
 </style>
-""", unsafe_allow_html=True)
+"""
+st.markdown(custom_css, unsafe_allow_html=True)
 
 DATA_FILE = "邊坡資料.xlsx" if os.path.exists("邊坡資料.xlsx") else "1.邊坡資料(11505).xlsx"
 KMZ_FILE = "南澳段歷次災害-(更新斑點圖使用).kmz"
@@ -255,7 +385,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
 
                     old_desc = str(row.get('現地狀況描述', '')) if pd.notna(row.get('現地狀況描述')) else ""
                     new_entry = f"[{datetime.date.today().strftime('%m/%d')} {selected_struct}] {struct_desc}" if struct_desc else ""
-                    combined_desc = f"{new_entry}\n{old_desc}".strip() if new_entry else old_desc
+                    combined_desc = (new_entry + "\n" + old_desc).strip() if new_entry else old_desc
 
                     df.loc[df['口卡編號'] == row['口卡編號'], '定性分級'] = new_qual
                     df.loc[df['口卡編號'] == row['口卡編號'], '邊坡狀態'] = new_status
@@ -270,6 +400,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
 
     # --- 主清單列表模式 ---
     else:
+        # 需求 1: 標題字體再加大
         st.markdown("<div class='system-title notranslate' translate='no'>南澳段邊坡生命週期資料庫</div>", unsafe_allow_html=True)
 
         col_f1, col_f2 = st.columns(2)
@@ -294,7 +425,25 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 f_df['附近地名'].astype(str).str.contains(search_kw, case=False)
             ]
 
-        st.caption(f"符合條件邊坡：**{len(f_df)}** 處（總資產：{len(df)} 處）")
+        # 需求 1: 動態列出 A B C D 級各幾處
+        q_counts = f_df['定性分級'].value_counts()
+        cnt_a = q_counts.get("A", 0)
+        cnt_b = q_counts.get("B", 0)
+        cnt_c = q_counts.get("C", 0)
+        cnt_d = q_counts.get("D", 0)
+        cnt_o = q_counts.get("其他", 0)
+
+        summary_html = f"""
+        <div class="summary-badge-container notranslate" translate="no">
+            <span style="color:#cbd5e1; font-weight:600;">符合條件邊坡：<b>{len(f_df)}</b> 處 (總資產：{len(df)}) ➔ </span>
+            <span class="badge-stat badge-stat-A">A級 {cnt_a} 處</span>
+            <span class="badge-stat badge-stat-B">B級 {cnt_b} 處</span>
+            <span class="badge-stat badge-stat-C">C級 {cnt_c} 處</span>
+            <span class="badge-stat badge-stat-D">D級 {cnt_d} 處</span>
+            <span class="badge-stat badge-stat-other">其他 {cnt_o} 處</span>
+        </div>
+        """
+        st.markdown(summary_html, unsafe_allow_html=True)
 
         for r_name in f_df['路線'].dropna().unique():
             sub_df = f_df[f_df['路線'] == r_name]
@@ -325,7 +474,7 @@ elif st.session_state.bottom_tab == "📊 定量定性":
     
     chart_type = st.radio("📈 圖表呈現模式", ["圓餅圖 (Pie Chart)", "長條圖 (Bar Chart)"], horizontal=True)
 
-    # 1. 定性分級 (單行緊湊字典，防止截斷)
+    # 1. 定性分級
     st.markdown("<div class='notranslate' translate='no' style='font-size:16.5px; font-weight:700; color:#e2e8f0; margin-top:8px; margin-bottom:6px;'>1. 定性分級統計 (A, B, C, D, 其他)</div>", unsafe_allow_html=True)
     qual_order = ["A", "B", "C", "D", "其他"]
     c_counts = df['定性分級'].value_counts()
@@ -518,10 +667,8 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         st_folium(m_dis, width="100%", height=530)
 
 # ==============================================================================
-# 5. 底部四大功能導航按鈕列
+# 5. 底部 4 功能導航條 (需求 2: 隱藏式抽屜，平時收合，需要時由下而上浮出)
 # ==============================================================================
-st.markdown("<hr style='margin: 22px 0 14px 0; border: none; border-top: 1px solid rgba(255,255,255,0.08);' />", unsafe_allow_html=True)
-
 nav_cols = st.columns(4)
 with nav_cols[0]:
     if st.button("📋 邊坡清冊", key="nav_btn_1", use_container_width=True, type="primary" if st.session_state.bottom_tab == "📋 邊坡清冊" else "secondary"):
@@ -547,7 +694,7 @@ with nav_cols[3]:
         st.rerun()
 
 # ==============================================================================
-# 6. 單位識別欄（彩色公路局徽章 + 完整單位全稱）
+# 6. 需求 1: LOGO 與單位全稱移到功能列正下方 (頁面最底部)
 # ==============================================================================
 LOGO_VECTOR_SVG = (
     "<svg class='app-official-logo notranslate' viewBox='0 0 818 138' fill='none' xmlns='http://www.w3.org/2000/svg' translate='no'>"
@@ -574,11 +721,14 @@ for possible_logo in ["LOGO.webp", "LOGO.png", "logo.png", "logo.webp"]:
         except Exception:
             pass
 
-footer_html = (
-    "<div class='app-official-footer notranslate' translate='no'>"
-    f"{logo_render}"
-    "<span class='app-official-text notranslate' translate='no'>交通部公路局東區養護工程分局南澳工務段</span>"
+footer_bottom_html = (
+    "<div class='app-official-footer-bottom notranslate' translate='no'>"
+    "  <div class='footer-title-row'>"
+    f"    {logo_render}"
+    "    <span class='app-official-text notranslate' translate='no'>交通部公路局東區養護工程分局南澳工務段</span>"
+    "  </div>"
+    "  <div class='app-official-source notranslate' translate='no'>本網頁資料來源：邊坡全生命週期管理系統</div>"
     "</div>"
 )
 
-st.markdown(footer_html, unsafe_allow_html=True)
+st.markdown(footer_bottom_html, unsafe_allow_html=True)
