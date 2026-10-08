@@ -18,7 +18,7 @@ EXCEL_LOCK = threading.Lock()
 
 # 1. 頁面設定
 st.set_page_config(
-    page_title="南澳段省道邊坡全生命週期資料庫",
+    page_title="南澳段邊坡全生命週期資料庫",
     page_icon="⛰️",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -512,7 +512,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
 
     # --- 主清單列表模式 ---
     else:
-        st.markdown("<div class='system-title notranslate' translate='no'>南澳段省道邊坡全生命週期資料庫</div>", unsafe_allow_html=True)
+        st.markdown("<div class='system-title notranslate' translate='no'>南澳段邊坡全生命週期資料庫</div>", unsafe_allow_html=True)
 
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -790,7 +790,7 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
 # 頁面 4：災害斑點圖 (整合 GPS 即時定位準心)
 # ==============================================================================
 elif st.session_state.bottom_tab == "🔥 災害斑點圖":
-    st.markdown(f"<div class='system-title notranslate' translate='no'>歷次災害斑點專題圖（{len(df_disasters)} 處）</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='system-title notranslate' translate='no'>歷次災害斑點圖（{len(df_disasters)} 處）</div>", unsafe_allow_html=True)
     st.caption("💡 點擊地圖左上方 **「準心定位圖示 🎯」** 即可自動定位目前所在位置與最近災點距離。")
 
     if not df_disasters.empty:
