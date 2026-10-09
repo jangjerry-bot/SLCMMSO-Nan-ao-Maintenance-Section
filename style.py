@@ -16,9 +16,7 @@ def get_theme_css(is_light: bool) -> str:
             --btn-sec-bg: #f1f5f9;
             --btn-sec-text: #0f172a;
             --btn-sec-border: #cbd5e1;
-            --footer-bg: #ffffff;
             --footer-text: #4A6B82;
-            --footer-border: #cbd5e1;
             --link-color: #2563eb;
         """
     else:
@@ -34,9 +32,7 @@ def get_theme_css(is_light: bool) -> str:
             --btn-sec-bg: #1e293b;
             --btn-sec-text: #f1f5f9;
             --btn-sec-border: #334155;
-            --footer-bg: rgba(255, 255, 255, 0.03);
             --footer-text: #4A6B82;
-            --footer-border: rgba(255, 255, 255, 0.08);
             --link-color: #60a5fa;
         """
 
@@ -46,16 +42,13 @@ def get_theme_css(is_light: bool) -> str:
         '<svg class="geo-splash-svg" viewBox="0 0 340 220" fill="none" xmlns="http://www.w3.org/2000/svg">'
         '<defs>'
         '<linearGradient id="splashGradBase" x1="50" y1="115" x2="290" y2="195" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#52796f" stop-opacity="0.9"/>'
-        '<stop offset="1" stop-color="#2d4a43" stop-opacity="0.95"/>'
+        '<stop stop-color="#52796f" stop-opacity="0.9"/><stop offset="1" stop-color="#2d4a43" stop-opacity="0.95"/>'
         '</linearGradient>'
         '<linearGradient id="splashGradPrism" x1="150" y1="55" x2="170" y2="168" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#4A6B82" stop-opacity="0.88"/>'
-        '<stop offset="1" stop-color="#1e293b" stop-opacity="0.95"/>'
+        '<stop stop-color="#4A6B82" stop-opacity="0.88"/><stop offset="1" stop-color="#1e293b" stop-opacity="0.95"/>'
         '</linearGradient>'
         '<linearGradient id="splashGradSeepage" x1="95" y1="75" x2="235" y2="142" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#38bdf8" stop-opacity="0.8"/>'
-        '<stop offset="1" stop-color="#0284c7" stop-opacity="0.95"/>'
+        '<stop stop-color="#38bdf8" stop-opacity="0.8"/><stop offset="1" stop-color="#0284c7" stop-opacity="0.95"/>'
         '</linearGradient>'
         '</defs>'
         '<g class="geo-mesh-grid" stroke="#64748b" stroke-width="0.9" stroke-opacity="0.45">'
@@ -85,53 +78,53 @@ def get_theme_css(is_light: bool) -> str:
     }
 
     #geo-splash-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: #0b0f19;
-        z-index: 99999999;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        pointer-events: none;
-        animation: splashDismiss 0.6s cubic-bezier(0.4, 0, 0.2, 1) 2.4s forwards;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        background: #0b0f19 !important;
+        z-index: 99999999 !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        pointer-events: none !important;
+        animation: splashDismiss 0.6s cubic-bezier(0.4, 0, 0.2, 1) 2.4s forwards !important;
     }
     @keyframes splashDismiss {
         0% { opacity: 1; visibility: visible; }
         99% { opacity: 0; visibility: visible; }
-        100% { opacity: 0; visibility: hidden; display: none; }
+        100% { opacity: 0; visibility: hidden; display: none !important; }
     }
 
     .geo-splash-center {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        text-align: center;
-        padding: 20px;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        text-align: center !important;
+        padding: 20px !important;
     }
     .geo-splash-svg {
-        width: clamp(260px, 46vw, 380px);
-        height: auto;
-        filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.6));
+        width: clamp(260px, 46vw, 380px) !important;
+        height: auto !important;
+        filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.55)) !important;
     }
     .geo-splash-title {
-        color: #f8fafc;
-        font-size: clamp(20px, 2.8vw, 26px);
-        font-weight: 900;
-        letter-spacing: 2.2px;
-        margin-top: 18px;
-        animation: titleFadeIn 0.8s ease-out;
+        color: #f8fafc !important;
+        font-size: clamp(20px, 2.8vw, 26px) !important;
+        font-weight: 900 !important;
+        letter-spacing: 2px !important;
+        margin-top: 18px !important;
+        animation: titleFadeIn 0.8s ease-out !important;
     }
     .geo-splash-sub {
-        color: #38bdf8;
-        font-size: clamp(10.5px, 1.4vw, 12.5px);
-        font-weight: 700;
-        letter-spacing: 2.4px;
-        margin-top: 6px;
-        animation: titleFadeIn 1.0s ease-out;
+        color: #38bdf8 !important;
+        font-size: clamp(10.5px, 1.4vw, 12.5px) !important;
+        font-weight: 700 !important;
+        letter-spacing: 2.4px !important;
+        margin-top: 6px !important;
+        animation: titleFadeIn 1.0s ease-out !important;
     }
 
     .geo-mesh-grid { animation: meshPop 0.8s ease-out; }
@@ -184,7 +177,7 @@ def get_theme_css(is_light: bool) -> str:
         max-width: 100% !important;
         width: 100% !important;
         padding-top: clamp(2.5rem, 4vh, 4rem) !important;
-        padding-bottom: clamp(3rem, 5vh, 4.5rem) !important;
+        padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important;
         padding-left: clamp(10px, 2.5vw, 32px) !important;
         padding-right: clamp(10px, 2.5vw, 32px) !important;
         margin: 0 auto !important;
@@ -224,7 +217,7 @@ def get_theme_css(is_light: bool) -> str:
         color: #4A6B82 !important;
         text-align: center !important;
         display: block !important;
-        width: 100% !important;
+        width: 100%;
         margin-top: 0px !important;
         margin-bottom: 6px !important;
     }
@@ -413,7 +406,6 @@ def get_theme_css(is_light: bool) -> str:
     button[key="badge_btn_D"] { background-color: #059669 !important; border: 1px solid #047857 !important; color: #ffffff !important; font-weight: 800 !important; }
     button[key="badge_btn_其他"] { background-color: #475569 !important; border: 1px solid #334155 !important; color: #ffffff !important; font-weight: 800 !important; }
 
-    /* 底部導航按鈕容器優化 */
     div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {
         display: flex !important;
         flex-direction: row !important;
@@ -437,18 +429,21 @@ def get_theme_css(is_light: bool) -> str:
         height: clamp(38px, 4.5vh, 44px) !important;
     }
 
-    /* 單位識別頁尾：極致響應式，在電腦與手機上皆完美適配，絕不破框 */
+    /* ==========================================================================
+       最底端頁尾：徹底移除外層邊框與背景色塊，自然懸浮於頁面底端
+       ========================================================================== */
     .app-official-footer-bottom {
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        margin-top: 16px !important;
-        margin-bottom: 24px !important;
-        padding: clamp(12px, 2.5vw, 18px) !important;
-        background: var(--footer-bg) !important;
-        border-radius: 12px !important;
-        border: 1px solid var(--footer-border) !important;
+        margin-top: 18px !important;
+        margin-bottom: 26px !important;
+        padding: 8px 12px !important;
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
         width: 100% !important;
         box-sizing: border-box !important;
     }
@@ -457,20 +452,18 @@ def get_theme_css(is_light: bool) -> str:
         flex-direction: row !important;
         align-items: center !important;
         justify-content: center !important;
-        flex-wrap: wrap !important;
-        gap: clamp(8px, 1.5vw, 14px) !important;
+        gap: 10px !important;
         width: 100% !important;
         text-align: center !important;
     }
     .app-official-logo { 
-        height: clamp(26px, 3.8vw, 36px) !important; 
+        height: clamp(28px, 4.0vw, 36px) !important; 
         width: auto !important; 
-        max-width: 100% !important;
         display: inline-block !important; 
         vertical-align: middle !important; 
     }
     .app-official-text {
-        font-size: clamp(13px, 1.7vw, 16.5px) !important;
+        font-size: clamp(13.5px, 1.8vw, 16.5px) !important;
         font-weight: 800 !important;
         color: var(--footer-text) !important;
         letter-spacing: 0.5px !important;
@@ -481,10 +474,10 @@ def get_theme_css(is_light: bool) -> str:
         font-size: clamp(11px, 1.3vw, 12.5px) !important;
         font-weight: 500 !important;
         color: var(--text-muted) !important;
-        margin-top: 8px !important;
+        margin-top: 6px !important;
         letter-spacing: 0.3px !important;
         text-align: center !important;
-        line-height: 1.5 !important;
+        line-height: 1.4 !important;
         width: 100% !important;
         word-break: break-word !important;
     }
@@ -492,11 +485,9 @@ def get_theme_css(is_light: bool) -> str:
         color: var(--link-color) !important;
         text-decoration: underline !important;
         font-weight: 600 !important;
-        display: inline-block !important;
         margin-left: 3px !important;
     }
 
-    /* 手機直向窄螢幕專屬微調 (< 480px)：LOGO 與名稱自動置中優雅折疊 */
     @media (max-width: 480px) {
         .footer-title-row {
             flex-direction: column !important;
@@ -507,10 +498,6 @@ def get_theme_css(is_light: bool) -> str:
         }
         .app-official-text {
             font-size: 13.5px !important;
-            letter-spacing: 0.3px !important;
-        }
-        .app-official-source {
-            font-size: 11px !important;
         }
     }
 </style>
