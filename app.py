@@ -9,22 +9,21 @@ import datetime
 import zipfile
 import xml.etree.ElementTree as ET
 import re
-import base64
-import threading
 from PIL import Image
+import io
 
-# 全域檔案排他鎖：確保多位同仁同時操作時依序寫入，徹底杜絕 Excel 檔案衝突損毀
-EXCEL_LOCK = threading.Lock()
+# 匯入樣式與規範模組
+from style import get_theme_css, render_footer
+from inspection_schema import INSPECTION_TEMPLATES, match_template, generate_doc_report
 
-# 1. 頁面設定
 st.set_page_config(
-    page_title="南澳段邊坡全生命週期資料庫",
+    page_title="南澳邊坡全生命週期資料庫",
     page_icon="⛰️",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# 主題與狀態管理
+# 狀態管理
 if "theme_mode" not in st.session_state:
     st.session_state.theme_mode = "🌙 深色黑底"
 if "bottom_tab" not in st.session_state:
@@ -34,219 +33,14 @@ if "selected_slope_id" not in st.session_state:
 if "active_grade_detail" not in st.session_state:
     st.session_state.active_grade_detail = None
 
+# 外業巡查草稿暫存區（防止電話打斷、意外跳出遺失內容）
+if "patrol_draft" not in st.session_state:
+    st.session_state.patrol_draft = {}
+
 is_light = (st.session_state.theme_mode == "☀️ 淺色白底")
 plotly_font_color = "#0f172a" if is_light else "#f8fafc"
 
-# 2. 動態主題 CSS
-if is_light:
-    theme_vars = """
-        --bg-main: #f8fafc;
-        --text-main: #0f172a;
-        --text-muted: #475569;
-        --card-bg: #ffffff;
-        --card-border: #cbd5e1;
-        --btn-sec-bg: #e2e8f0;
-        --btn-sec-text: #0f172a;
-        --btn-sec-border: #94a3b8;
-        --footer-bg: #f1f5f9;
-        --footer-text: #4A6B82;
-        --footer-border: #cbd5e1;
-    """
-else:
-    theme_vars = """
-        --bg-main: #0b0f19;
-        --text-main: #f8fafc;
-        --text-muted: #94a3b8;
-        --card-bg: rgba(255, 255, 255, 0.04);
-        --card-border: rgba(255, 255, 255, 0.12);
-        --btn-sec-bg: #1e293b;
-        --btn-sec-text: #f1f5f9;
-        --btn-sec-border: #334155;
-        --footer-bg: rgba(255, 255, 255, 0.03);
-        --footer-text: #4A6B82;
-        --footer-border: rgba(255, 255, 255, 0.08);
-    """
-
-custom_css = f"""
-<script>
-    document.documentElement.setAttribute('translate', 'no');
-    document.documentElement.classList.add('notranslate');
-    document.body.setAttribute('translate', 'no');
-    document.body.classList.add('notranslate');
-    const obs = new MutationObserver((mutations) => {{
-        for (const m of mutations) {{
-            for (const n of m.addedNodes) {{
-                if (n.nodeType === 1 && (n.className && String(n.className).includes('immersive-translate'))) {{
-                    n.remove();
-                }}
-            }}
-        }}
-    }});
-    obs.observe(document.documentElement, {{ childList: true, subtree: true }});
-</script>
-<style>
-    :root {{
-        {theme_vars}
-    }}
-
-    .stApp {{
-        background-color: var(--bg-main) !important;
-        color: var(--text-main) !important;
-    }}
-
-    [class*="immersive-translate"], .immersive-translate-target-wrapper {{ display: none !important; height: 0 !important; }}
-    #MainMenu, footer {{ visibility: hidden; }}
-    
-    /* 頂部預留充足安全間距，避開右上角 Deploy 按鈕 */
-    .block-container {{
-        max-width: 860px !important;
-        padding-top: 4.8rem !important;
-        padding-bottom: 4.5rem !important;
-        margin: 0 auto !important;
-    }}
-    
-    .system-title {{
-        font-size: 26px !important;
-        line-height: 1.4 !important;
-        font-weight: 900 !important;
-        letter-spacing: 1.2px;
-        color: #4A6B82 !important;
-        text-align: center !important;
-        display: block !important;
-        width: 100%;
-        margin-top: 4px !important;
-        margin-bottom: 18px !important;
-    }}
-
-    div[data-testid="stRadio"] label,
-    div[data-testid="stRadio"] p {{
-        color: var(--text-main) !important;
-        font-weight: 700 !important;
-        font-size: 14.5px !important;
-    }}
-
-    .app-card {{
-        background: var(--card-bg) !important;
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin-bottom: 12px;
-        border: 1px solid var(--card-border) !important;
-    }}
-    .detail-row {{
-        display: flex;
-        justify-content: space-between;
-        padding: 7px 0;
-        border-bottom: 1px solid var(--card-border) !important;
-        font-size: 14px;
-        line-height: 1.45;
-        color: var(--text-main) !important;
-    }}
-    .detail-label {{ color: var(--text-muted) !important; font-weight: 500; width: 40%; }}
-    .detail-value {{ font-weight: 600; width: 60%; text-align: right; word-break: break-all; color: var(--text-main) !important; }}
-
-    .badge {{
-        display: inline-block;
-        padding: 3px 9px;
-        border-radius: 6px;
-        font-size: 11.5px;
-        font-weight: 700;
-        color: #ffffff !important;
-    }}
-    .badge-A {{ background-color: #c05646; }}
-    .badge-B {{ background-color: #d9822b; }}
-    .badge-C {{ background-color: #4A6B82; }}
-    .badge-D {{ background-color: #52796f; }}
-    .badge-其他 {{ background-color: #64748b; }}
-
-    .embed-map-box {{
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid var(--card-border) !important;
-        margin: 12px 0;
-    }}
-
-    button[kind="secondary"] {{
-        background-color: var(--btn-sec-bg) !important;
-        color: var(--btn-sec-text) !important;
-        border: 1px solid var(--btn-sec-border) !important;
-        font-weight: 700 !important;
-    }}
-    button[kind="primary"] {{
-        background-color: #4A6B82 !important;
-        border-color: #3E5C76 !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
-    }}
-
-    /* A B C D 級高對比實體按鈕 */
-    button[key="badge_btn_A"] {{ background-color: #c05646 !important; border: 1px solid #991b1b !important; color: #ffffff !important; font-weight: 800 !important; }}
-    button[key="badge_btn_B"] {{ background-color: #d9822b !important; border: 1px solid #c2410c !important; color: #ffffff !important; font-weight: 800 !important; }}
-    button[key="badge_btn_C"] {{ background-color: #2563eb !important; border: 1px solid #1d4ed8 !important; color: #ffffff !important; font-weight: 800 !important; }}
-    button[key="badge_btn_D"] {{ background-color: #059669 !important; border: 1px solid #047857 !important; color: #ffffff !important; font-weight: 800 !important; }}
-    button[key="badge_btn_其他"] {{ background-color: #475569 !important; border: 1px solid #334155 !important; color: #ffffff !important; font-weight: 800 !important; }}
-
-    /* 4 個功能鍵容器：排在清冊下方、LOGO上方，手機端強制單行 */
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {{
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: 6px !important;
-        width: 100% !important;
-        margin-top: 20px !important;
-        margin-bottom: 12px !important;
-    }}
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) > div {{
-        flex: 1 1 25% !important;
-        min-width: 0 !important;
-    }}
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) button {{
-        padding-left: 2px !important;
-        padding-right: 2px !important;
-        font-size: 13px !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        height: 38px !important;
-    }}
-
-    /* 單位識別頁尾：保持在全頁面最底端 */
-    .app-official-footer-bottom {{
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        margin-top: 14px !important;
-        margin-bottom: 24px !important;
-        padding: 12px 14px !important;
-        background: var(--footer-bg) !important;
-        border-radius: 10px !important;
-        border: 1px solid var(--footer-border) !important;
-    }}
-    .footer-title-row {{
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 8px !important;
-    }}
-    .app-official-logo {{ height: 22px !important; width: auto !important; display: inline-block !important; vertical-align: middle !important; }}
-    .app-official-text {{
-        font-size: 13.5px !important;
-        font-weight: 800 !important;
-        color: var(--footer-text) !important;
-        letter-spacing: 0.5px !important;
-        white-space: nowrap !important;
-        line-height: 22px !important;
-    }}
-    .app-official-source {{
-        font-size: 11px !important;
-        font-weight: 500 !important;
-        color: var(--text-muted) !important;
-        margin-top: 4px !important;
-        letter-spacing: 0.4px !important;
-    }}
-</style>
-"""
-st.markdown(custom_css, unsafe_allow_html=True)
+st.markdown(get_theme_css(is_light), unsafe_allow_html=True)
 
 # 頂部色彩模式切換
 col_top_space, col_top_theme = st.columns([0.65, 0.35])
@@ -265,7 +59,6 @@ with col_top_theme:
 DATA_FILE = "邊坡資料.xlsx" if os.path.exists("邊坡資料.xlsx") else "1.邊坡資料(11505).xlsx"
 KMZ_FILE = "南澳段歷次災害-(更新斑點圖使用).kmz"
 
-# 定量分級標準化轉換函式（自動識別 1~5、1.0、第一級、第1級等）
 def normalize_quant(val):
     if pd.isna(val):
         return "未施作"
@@ -284,7 +77,7 @@ def normalize_quant(val):
         return "第5級"
     return "未施作"
 
-# 3. 讀取 Excel 資料
+# 唯讀載入主檔案
 @st.cache_data
 def load_data():
     if not os.path.exists(DATA_FILE):
@@ -293,14 +86,12 @@ def load_data():
     df['起點緯度'] = pd.to_numeric(df['起點緯度'], errors='coerce')
     df['起點經度'] = pd.to_numeric(df['起點經度'], errors='coerce')
     df['定性分級'] = df['定性分級'].fillna('其他').astype(str).str.strip()
-    
     if '定量分級' in df.columns:
         df['定量分級'] = df['定量分級'].apply(normalize_quant)
     else:
         df['定量分級'] = "未施作"
     return df
 
-# 4. 讀取 KMZ 歷次災害斑點
 @st.cache_data
 def load_kmz():
     disasters = []
@@ -355,50 +146,39 @@ if is_sub_view:
         st.rerun()
 
 # ==============================================================================
-# 頁面 1：邊坡清冊與詳細資料
+# 頁面 1：邊坡清冊（唯讀查詢檢索，資料絕不更改）
 # ==============================================================================
 if st.session_state.bottom_tab == "📋 邊坡清冊":
-    
-    # --- 單筆邊坡詳細資訊 (Details View) ---
     if st.session_state.selected_slope_id is not None:
         matched = df[df['口卡編號'] == st.session_state.selected_slope_id]
         if not matched.empty:
             row = matched.iloc[0]
             q_grade = str(row['定性分級'])
 
-            card_top = (
-                "<div class='app-card notranslate' translate='no'>"
-                "<div style='display:flex; justify-content:space-between; align-items:center;'>"
-                f"<span style='font-size:19px; font-weight:700;'>📍 {row['路線']} {row['里程樁號(起)']}</span>"
-                f"<span class='badge badge-{q_grade}'>{q_grade} 級</span>"
-                "</div>"
-                f"<div style='font-family:monospace; font-size:12.5px; color:var(--text-muted); margin-top:3px;'>{row['口卡編號']}</div>"
-                f"<div style='font-size:12px; color:var(--text-muted); margin-top:2px;'>最近更新：{row.get('最近更新時間', '無')}</div>"
-                f"<div style='font-size:14px; font-weight:600; color:#4A6B82; margin-top:4px;'>構造物：{row.get('邊坡構造物', '自然邊坡')}</div>"
-                "</div>"
-            )
+            card_top = f"""<div class='app-card notranslate' translate='no'>
+<div style='display:flex; justify-content:space-between; align-items:center;'>
+<span style='font-size:19px; font-weight:700;'>📍 {row['路線']} {row['里程樁號(起)']}</span>
+<span class='badge badge-{q_grade}'>{q_grade} 級</span>
+</div>
+<div style='font-family:monospace; font-size:12.5px; color:var(--text-muted); margin-top:3px;'>口卡：{row['口卡編號']}</div>
+<div style='font-size:14px; font-weight:600; color:#4A6B82; margin-top:4px;'>構造物：{row.get('邊坡構造物', '自然邊坡')}</div>
+</div>"""
             st.markdown(card_top, unsafe_allow_html=True)
 
             r_lat, r_lon = row.get('起點緯度'), row.get('起點經度')
             if pd.notna(r_lat) and pd.notna(r_lon):
                 st.markdown("##### 🛰️ 現地空間衛星影像位置")
-                embed_map_html = (
-                    "<div class='embed-map-box notranslate' translate='no'>"
-                    f"<iframe width='100%' height='280' frameborder='0' scrolling='no' marginheight='0' marginwidth='0' "
-                    f"src='https://maps.google.com/maps?q={r_lat},{r_lon}&t=k&z=17&ie=UTF8&iwloc=&output=embed'></iframe>"
-                    "</div>"
-                )
+                embed_map_html = f"""<div class='embed-map-box notranslate' translate='no'>
+<iframe width='100%' height='280' frameborder='0' scrolling='no' marginheight='0' marginwidth='0' src='https://maps.google.com/maps?q={r_lat},{r_lon}&t=k&z=17&ie=UTF8&iwloc=&output=embed'></iframe>
+</div>"""
                 st.markdown(embed_map_html, unsafe_allow_html=True)
 
                 gmap_url = f"https://www.google.com/maps/dir/?api=1&destination={r_lat},{r_lon}"
-                nav_link = (
-                    "<div style='margin: 8px 0 16px 0;' class='notranslate' translate='no'>"
-                    f"<a href='{gmap_url}' target='_blank' style='display:block; text-align:center; padding:9px 12px; background:#4A6B82; color:white; font-weight:bold; border-radius:8px; text-decoration:none; font-size:14px;'>"
-                    "🧭 開啟 Google Maps 導航至此處（依目前位置規劃路線）</a></div>"
-                )
+                nav_link = f"""<div style='margin: 8px 0 16px 0;' class='notranslate' translate='no'>
+<a href='{gmap_url}' target='_blank' style='display:block; text-align:center; padding:9px 12px; background:#4A6B82; color:white; font-weight:bold; border-radius:8px; text-decoration:none; font-size:14px;'>🧭 開啟 Google Maps 導航至此處（依目前位置規劃路線）</a></div>"""
                 st.markdown(nav_link, unsafe_allow_html=True)
 
-            st.markdown("##### 📋 邊坡完整屬性資料")
+            st.markdown("##### 📋 邊坡完整屬性資料（唯讀瀏覽）")
             detail_fields = [
                 ("邊坡狀態", str(row.get('邊坡狀態', '無'))),
                 ("區處", str(row.get('區處', '東區養護工程分局'))),
@@ -421,98 +201,25 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 ("定量分級", str(row.get('定量分級', '未施作'))),
                 ("災害歷史", str(row.get('災害歷史', '無'))),
                 ("資料建立日期", str(row.get('資料建立日期', '無'))),
-                ("監測情形", str(row.get('監測情形', '無'))),
-                ("監測辦理方式", str(row.get('監測辦理方式', '無'))),
                 ("附近地名", str(row.get('附近地名', '無'))),
             ]
 
             rows_html = "".join([f"<div class='detail-row'><span class='detail-label'>{k}</span><span class='detail-value'>{v}</span></div>" for k, v in detail_fields])
             st.markdown(f"<div class='app-card notranslate' translate='no'>{rows_html}</div>", unsafe_allow_html=True)
 
-            st.markdown("**現地狀況描述：**")
+            st.markdown("**現地狀況歷史紀錄：**")
             desc_val = str(row.get('現地狀況描述', '無描述紀錄'))
-            desc_html = (
-                "<div class='app-card notranslate' translate='no' style='background:rgba(74, 107, 130, 0.12); border-left:4px solid #4A6B82; line-height:1.5; font-size:14px;'>"
-                f"{desc_val}</div>"
-            )
+            desc_html = f"""<div class='app-card notranslate' translate='no' style='background:rgba(74, 107, 130, 0.12); border-left:4px solid #4A6B82; line-height:1.5; font-size:14px;'>{desc_val}</div>"""
             st.markdown(desc_html, unsafe_allow_html=True)
 
-            # 構造物分項巡查 Form（具名化 + 防覆蓋機制）
-            st.markdown("##### 📝 構造物分項巡查回報")
-            raw_structs = str(row.get('邊坡構造物', '自然邊坡'))
-            split_structs = [s.strip() for s in re.split(r'[,、]', raw_structs) if s.strip()]
-            if not split_structs:
-                split_structs = ["自然邊坡"]
-            split_structs.append("＋ 整體邊坡現況")
+            # 快速導流鍵：直接帶此卡號進入「養護巡查」
+            if st.button("📝 前往填寫此邊坡之「養護巡查檢測表」", type="primary", use_container_width=True):
+                st.session_state.bottom_tab = "📝 養護巡查"
+                st.session_state.target_slope_for_patrol = row['口卡編號']
+                st.rerun()
 
-            with st.form("inspect_form"):
-                inspector_name = st.text_input("👤 巡查人員姓名 / 職稱 (必填)", placeholder="例如：張工程師")
-                selected_struct = st.selectbox("構造物項目", split_structs)
-                c_st, c_qu = st.columns(2)
-                with c_st:
-                    new_status = st.selectbox("邊坡管理狀態", ["鎖定管理中", "解除列管", "重點列管"])
-                with c_qu:
-                    new_qual = st.selectbox("定性分級調整", ["A", "B", "C", "D", "其他"], index=["A","B","C","D","字體"].index(q_grade) if q_grade in ["A","B","C","D","其他"] else 4)
-
-                struct_desc = st.text_area(f"【{selected_struct}】現地狀況描述", placeholder="請輸入現況描述...")
-                up_photos = st.file_uploader("選取照片 (支援一次多張)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
-                cam_photo = st.camera_input("開啟相機拍照")
-
-                if st.form_submit_button("💾 儲存並寫入 Excel (具備防衝突鎖定)", type="primary", use_container_width=True):
-                    if not inspector_name.strip():
-                        st.error("⚠️ 請填寫巡查人員姓名，以便確認異動責任歸屬！")
-                    else:
-                        os.makedirs("inspection_photos", exist_ok=True)
-                        t_now = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                        s_count = 0
-                        if up_photos:
-                            for idx, p in enumerate(up_photos):
-                                c_s = selected_struct.replace(":", "_").replace("/", "_")
-                                Image.open(p).save(f"inspection_photos/{row['口卡編號']}_{c_s}_{t_now}_{idx+1}.jpg")
-                                s_count += 1
-                        if cam_photo:
-                            c_s = selected_struct.replace(":", "_").replace("/", "_")
-                            Image.open(cam_photo).save(f"inspection_photos/{row['口卡編號']}_{c_s}_{t_now}_cam.jpg")
-                            s_count += 1
-
-                        # 具名記錄文字
-                        date_str = datetime.date.today().strftime('%m/%d')
-                        new_entry = f"[{date_str} {inspector_name.strip()} {selected_struct}] {struct_desc}" if struct_desc else ""
-
-                        # ===== 核心安全防護機制：加鎖 + 讀取硬碟最新版本進行局部修改 =====
-                        with EXCEL_LOCK:
-                            # 1. 重新由硬碟讀取最新 Excel（避免多人編輯覆蓋他人剛送出的資料）
-                            latest_df = pd.read_excel(DATA_FILE)
-                            
-                            # 2. 定位該筆口卡紀錄並合併描述
-                            target_mask = (latest_df['口卡編號'] == row['口卡編號'])
-                            if target_mask.any():
-                                old_rec = latest_df.loc[target_mask].iloc[0]
-                                old_desc = str(old_rec.get('現地狀況描述', '')) if pd.notna(old_rec.get('現地狀況描述')) else ""
-                                combined_desc = (new_entry + "\n" + old_desc).strip() if new_entry else old_desc
-
-                                latest_df.loc[target_mask, '定性分級'] = new_qual
-                                latest_df.loc[target_mask, '邊坡狀態'] = new_status
-                                if combined_desc:
-                                    latest_df.loc[target_mask, '現地狀況描述'] = combined_desc
-                                latest_df.loc[target_mask, '最近更新時間'] = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-
-                                # 3. 寫入主檔案
-                                latest_df.to_excel(DATA_FILE, index=False)
-                                
-                                # 4. 自動備份歷史機制（依照日期備份）
-                                os.makedirs("backups", exist_ok=True)
-                                backup_filename = f"backups/邊坡資料_{datetime.datetime.now().strftime('%Y%m%d')}.xlsx"
-                                latest_df.to_excel(backup_filename, index=False)
-
-                        # 5. 清除快取並重整頁面
-                        st.cache_data.clear()
-                        st.success(f"✅ 成功更新【{selected_struct}】（儲存 {s_count} 張照片，已自動留存異動備份）")
-                        st.rerun()
-
-    # --- 主清單列表模式 ---
     else:
-        st.markdown("<div class='system-title notranslate' translate='no'>南澳段邊坡全生命週期資料庫</div>", unsafe_allow_html=True)
+        st.markdown("<div class='system-title notranslate' translate='no'>南澳邊坡全生命週期資料庫</div>", unsafe_allow_html=True)
 
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -536,7 +243,6 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 f_df['附近地名'].astype(str).str.contains(search_kw, case=False)
             ]
 
-        # 統計數量
         q_counts = f_df['定性分級'].value_counts()
         cnt_a = q_counts.get("A", 0)
         cnt_b = q_counts.get("B", 0)
@@ -546,7 +252,6 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
 
         st.caption(f"符合條件邊坡：**{len(f_df)}** 處（總資產：{len(df)} 處） 點擊下方各級按鈕查看對應樁號：")
 
-        # 5 顆高對比彩色分級按鈕
         b_cols = st.columns(5)
         with b_cols[0]:
             if st.button(f"A級 ({cnt_a})", key="badge_btn_A", use_container_width=True):
@@ -569,12 +274,11 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 st.session_state.active_grade_detail = "其他" if st.session_state.active_grade_detail != "其他" else None
                 st.rerun()
 
-        # 點擊級數按鈕後展開詳細樁號
         if st.session_state.active_grade_detail:
             selected_grade = st.session_state.active_grade_detail
             grade_sub_df = f_df[f_df['定性分級'] == selected_grade]
             with st.container(border=True):
-                st.markdown(f"**📌【{selected_grade} 級】邊坡樁號清冊（共 {len(grade_sub_df)} 處，點擊直達詳情）：**")
+                st.markdown(f"**📌【{selected_grade} 級】邊坡樁號清冊（共 {len(grade_sub_df)} 處）：**")
                 g_cols = st.columns(2)
                 for idx, (_, g_row) in enumerate(grade_sub_df.iterrows()):
                     with g_cols[idx % 2]:
@@ -588,14 +292,11 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
         for r_name in f_df['路線'].dropna().unique():
             sub_df = f_df[f_df['路線'] == r_name]
             total_sub = len(sub_df)
-            
             with st.expander(f"🛣️ **{r_name}**（共 {total_sub} 處）", expanded=False):
                 show_all = False
                 if total_sub > 10:
                     show_all = st.checkbox(f"展開全部 {total_sub} 筆（預設顯示前 10 筆）", key=f"chk_{r_name}")
-                
                 display_df = sub_df if show_all else sub_df.head(10)
-
                 for _, r in display_df.iterrows():
                     grade = str(r['定性分級'])
                     with st.container(border=True):
@@ -603,18 +304,15 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                         if st.button(btn_label, key=f"pick_{r['口卡編號']}", use_container_width=True):
                             st.session_state.selected_slope_id = r['口卡編號']
                             st.rerun()
-
                         st.caption(f"卡號：`{r['口卡編號']}` ｜ 構造：`{r.get('邊坡構造物', '自然邊坡')[:18]}`")
 
 # ==============================================================================
-# 頁面 2：定量定性分級統計分析 (標準化支援 第1級 ~ 第5級)
+# 頁面 2：定量定性分級統計
 # ==============================================================================
 elif st.session_state.bottom_tab == "📊 定量定性":
     st.markdown("<div class='system-title notranslate' translate='no'>邊坡定量定性分級統計</div>", unsafe_allow_html=True)
-    
     chart_type = st.radio("📈 圖表呈現模式", ["圓餅圖 (Pie Chart)", "長條圖 (Bar Chart)"], horizontal=True)
 
-    # 1. 定性分級
     st.markdown("<div class='notranslate' translate='no' style='font-size:16.5px; font-weight:700; color:var(--text-main); margin-top:8px; margin-bottom:6px;'>1. 定性分級統計 (A, B, C, D, 其他)</div>", unsafe_allow_html=True)
     qual_order = ["A", "B", "C", "D", "其他"]
     c_counts = df['定性分級'].value_counts()
@@ -624,241 +322,265 @@ elif st.session_state.bottom_tab == "📊 定量定性":
     if "圓餅圖" in chart_type:
         fig_qual = px.pie(
             qual_df, values='數量', names='分級', hole=0.45,
-            color='分級',
-            color_discrete_map=qual_color_map,
-            category_orders={"分級": qual_order}
+            color='分級', color_discrete_map=qual_color_map, category_orders={"分級": qual_order}
         )
-        fig_qual.update_traces(
-            textposition='inside',
-            textinfo='percent+label+value',
-            insidetextfont=dict(color="#ffffff", size=13),
-            sort=False
-        )
-        fig_qual.update_layout(
-            margin=dict(l=10, r=10, t=10, b=10),
-            height=310,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(color=plotly_font_color),
-            legend=dict(font=dict(color=plotly_font_color, size=13))
-        )
+        fig_qual.update_traces(textposition='inside', textinfo='percent+label+value', insidetextfont=dict(color="#ffffff", size=13), sort=False)
+        fig_qual.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=310, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color), legend=dict(font=dict(color=plotly_font_color, size=13)))
         st.plotly_chart(fig_qual, use_container_width=True)
     else:
-        fig_qual = px.bar(
-            qual_df, x="分級", y="數量", text="數量",
-            color="分級",
-            color_discrete_map=qual_color_map,
-            category_orders={"分級": qual_order}
-        )
+        fig_qual = px.bar(qual_df, x="分級", y="數量", text="數量", color="分級", color_discrete_map=qual_color_map, category_orders={"分級": qual_order})
         fig_qual.update_traces(textposition='outside')
-        fig_qual.update_layout(
-            margin=dict(l=10, r=10, t=10, b=10),
-            height=290,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(color=plotly_font_color),
-            xaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)),
-            yaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)),
-            legend=dict(font=dict(color=plotly_font_color))
-        )
+        fig_qual.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=290, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color), xaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)), yaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)), legend=dict(font=dict(color=plotly_font_color)))
         st.plotly_chart(fig_qual, use_container_width=True)
 
     st.markdown("<hr style='margin: 18px 0; border: none; border-top: 1px solid var(--card-border);' />", unsafe_allow_html=True)
 
-    # 2. 定量分級
     st.markdown("<div class='notranslate' translate='no' style='font-size:16.5px; font-weight:700; color:var(--text-main); margin-top:8px; margin-bottom:6px;'>2. 定量分級統計 (第1級 ~ 第5級 / 未施作)</div>", unsafe_allow_html=True)
-    
     quant_order = ["第1級", "第2級", "第3級", "第4級", "第5級", "未施作"]
-    quant_color_map = {
-        "第1級": "#1e40af",
-        "第2級": "#3b82f6",
-        "第3級": "#f97316",
-        "第4級": "#ef4444",
-        "第5級": "#b91c1c",
-        "未施作": "#10b981"
-    }
-    
+    quant_color_map = {"第1級": "#1e40af", "第2級": "#3b82f6", "第3級": "#f97316", "第4級": "#ef4444", "第5級": "#b91c1c", "未施作": "#10b981"}
     q_counts = df['定量分級'].value_counts()
-    quant_df = pd.DataFrame({
-        "定量分級": quant_order,
-        "數量": [q_counts.get(c, 0) for c in quant_order]
-    })
+    quant_df = pd.DataFrame({"定量分級": quant_order, "數量": [q_counts.get(c, 0) for c in quant_order]})
 
     if "圓餅圖" in chart_type:
-        fig_quant = px.pie(
-            quant_df, values='數量', names='定量分級', hole=0.45,
-            color='定量分級',
-            color_discrete_map=quant_color_map,
-            category_orders={"定量分級": quant_order}
-        )
-        fig_quant.update_traces(
-            textposition='inside',
-            textinfo='percent+label+value',
-            insidetextfont=dict(color="#ffffff", size=13),
-            sort=False
-        )
-        fig_quant.update_layout(
-            margin=dict(l=10, r=10, t=10, b=10),
-            height=310,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(color=plotly_font_color),
-            legend=dict(font=dict(color=plotly_font_color, size=13))
-        )
+        fig_quant = px.pie(quant_df, values='數量', names='定量分級', hole=0.45, color='定量分級', color_discrete_map=quant_color_map, category_orders={"定量分級": quant_order})
+        fig_quant.update_traces(textposition='inside', textinfo='percent+label+value', insidetextfont=dict(color="#ffffff", size=13), sort=False)
+        fig_quant.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=310, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color), legend=dict(font=dict(color=plotly_font_color, size=13)))
         st.plotly_chart(fig_quant, use_container_width=True)
     else:
-        fig_quant = px.bar(
-            quant_df, x="定量分級", y="數量", text="數量",
-            color="定量分級",
-            color_discrete_map=quant_color_map,
-            category_orders={"定量分級": quant_order}
-        )
+        fig_quant = px.bar(quant_df, x="定量分級", y="數量", text="數量", color="定量分級", color_discrete_map=quant_color_map, category_orders={"定量分級": quant_order})
         fig_quant.update_traces(textposition='outside')
-        fig_quant.update_layout(
-            margin=dict(l=10, r=10, t=10, b=10),
-            height=290,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-            font=dict(color=plotly_font_color),
-            xaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)),
-            yaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)),
-            legend=dict(font=dict(color=plotly_font_color))
-        )
+        fig_quant.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=290, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color), xaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)), yaxis=dict(tickfont=dict(color=plotly_font_color), title_font=dict(color=plotly_font_color)), legend=dict(font=dict(color=plotly_font_color)))
         st.plotly_chart(fig_quant, use_container_width=True)
 
 # ==============================================================================
-# 頁面 3：地圖定位 (整合 GPS 即時定位準心)
+# 頁面 3：地圖定位
 # ==============================================================================
 elif st.session_state.bottom_tab == "🗺️ 地圖定位":
     st.markdown("<div class='system-title notranslate' translate='no'>邊坡空間地圖定位</div>", unsafe_allow_html=True)
     st.caption("💡 點擊地圖左上方 **「準心定位圖示 🎯」** 即可自動定位目前所在位置並計算視野範圍。")
-    
     valid_pts = df.dropna(subset=['起點緯度', '起點經度'])
-    
     if not valid_pts.empty:
         c_lat = valid_pts['起點緯度'].median()
         c_lon = valid_pts['起點經度'].median()
         m_loc = folium.Map(location=[c_lat, c_lon], zoom_start=11, tiles=None)
-
         LocateControl(auto_start=False, flyTo=True, keepCurrentZoomLevel=False).add_to(m_loc)
-
-        folium.TileLayer(
-            tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-            attr="Google Earth 衛星空照圖",
-            name="🛰️ Google Earth 衛星圖",
-            overlay=False,
-            control=True
-        ).add_to(m_loc)
-
-        folium.TileLayer(
-            tiles="OpenStreetMap",
-            name="🗺️ 標準電子地圖",
-            overlay=False,
-            control=True
-        ).add_to(m_loc)
-
+        folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Earth 衛星空照圖", name="🛰️ Google Earth 衛星圖", overlay=False, control=True).add_to(m_loc)
+        folium.TileLayer(tiles="OpenStreetMap", name="🗺️ 標準電子地圖", overlay=False, control=True).add_to(m_loc)
         cmap = {"A": "#c05646", "B": "#d9822b", "C": "#4A6B82", "D": "#52796f", "其他": "#64748b"}
         for _, r in valid_pts.iterrows():
             g = str(r['定性分級'])
             color = cmap.get(g, '#64748b')
             p_lat, p_lon = r['起點緯度'], r['起點經度']
             gmap_url = f"https://www.google.com/maps/dir/?api=1&destination={p_lat},{p_lon}"
-            
-            popup_html = (
-                "<div translate='no' class='notranslate' style='font-family:sans-serif; font-size:13.5px; line-height:1.45;'>"
-                f"<b style='font-size:14.5px; color:#0f172a;'>{r['路線']} {r['里程樁號(起)']}</b><br/>"
-                f"<b>卡號：</b>{r['口卡編號']}<br/>"
-                f"<b>定性分級：</b><span style='color:{color}; font-weight:bold;'>{g} 級</span><br/>"
-                f"<b>構造物：</b>{r.get('邊坡構造物', '自然邊坡')}<br/>"
-                f"<a href='{gmap_url}' target='_blank' style='display:inline-block; margin-top:6px; padding:4px 9px; background:#4A6B82; color:white; border-radius:4px; text-decoration:none; font-weight:bold; font-size:12px;'>🧭 導航到此里程</a>"
-                "</div>"
-            )
-            folium.CircleMarker(
-                location=[p_lat, p_lon],
-                radius=6,
-                popup=folium.Popup(popup_html, max_width=260),
-                color=color,
-                fill=True,
-                fill_color=color,
-                fill_opacity=0.85
-            ).add_to(m_loc)
-
+            popup_html = f"""<div translate='no' class='notranslate' style='font-family:sans-serif; font-size:13.5px; line-height:1.45;'>
+<b style='font-size:14.5px; color:#0f172a;'>{r['路線']} {r['里程樁號(起)']}</b><br/>
+<b>卡號：</b>{r['口卡編號']}<br/>
+<b>定性分級：</b><span style='color:{color}; font-weight:bold;'>{g} 級</span><br/>
+<b>構造物：</b>{r.get('邊坡構造物', '自然邊坡')}<br/>
+<a href='{gmap_url}' target='_blank' style='display:inline-block; margin-top:6px; padding:4px 9px; background:#4A6B82; color:white; border-radius:4px; text-decoration:none; font-weight:bold; font-size:12px;'>🧭 導航到此里程</a>
+</div>"""
+            folium.CircleMarker(location=[p_lat, p_lon], radius=6, popup=folium.Popup(popup_html, max_width=260), color=color, fill=True, fill_color=color, fill_opacity=0.85).add_to(m_loc)
         folium.LayerControl(position="topright", collapsed=True).add_to(m_loc)
         st_folium(m_loc, width="100%", height=530)
 
 # ==============================================================================
-# 頁面 4：災害斑點圖 (整合 GPS 即時定位準心)
+# 頁面 4：災害斑點圖
 # ==============================================================================
 elif st.session_state.bottom_tab == "🔥 災害斑點圖":
-    st.markdown(f"<div class='system-title notranslate' translate='no'>歷次災害斑點圖（{len(df_disasters)} 處）</div>", unsafe_allow_html=True)
-    st.caption("💡 點擊地圖左上方 **「準心定位圖示 🎯」** 即可自動定位目前所在位置與最近災點距離。")
-
+    st.markdown("<div class='map-sub-title notranslate' translate='no'>歷次災害斑點圖</div>", unsafe_allow_html=True)
     if not df_disasters.empty:
         c_lat = df_disasters['緯度'].median()
         c_lon = df_disasters['經度'].median()
         m_dis = folium.Map(location=[c_lat, c_lon], zoom_start=11, tiles=None)
-
         LocateControl(auto_start=False, flyTo=True, keepCurrentZoomLevel=False).add_to(m_dis)
-
-        folium.TileLayer(
-            tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-            attr="Google Earth 衛星空照圖",
-            name="🛰️ Google Earth 衛星圖",
-            overlay=False,
-            control=True
-        ).add_to(m_dis)
-
-        folium.TileLayer(
-            tiles="OpenStreetMap",
-            name="🗺️ 標準電子地圖",
-            overlay=False,
-            control=True
-        ).add_to(m_dis)
-
-        year_palette = {
-            "113年": "#e63946",
-            "114年": "#f77f00",
-            "112年": "#457b9d",
-            "115年": "#2a9d8f",
-            "其他/歷史": "#6c757d"
-        }
-
-        unique_years = sorted(df_disasters['年度'].unique())
-        for yr in unique_years:
+        folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Earth 衛星空照圖", name="🛰️ Google Earth 衛星圖", overlay=False, control=True).add_to(m_dis)
+        folium.TileLayer(tiles="OpenStreetMap", name="🗺️ 標準電子地圖", overlay=False, control=True).add_to(m_dis)
+        year_palette = {"113年": "#e63946", "114年": "#f77f00", "112年": "#457b9d", "115年": "#2a9d8f", "其他/歷史": "#6c757d"}
+        for yr in sorted(df_disasters['年度'].unique()):
             yr_df = df_disasters[df_disasters['年度'] == yr]
             yr_color = year_palette.get(yr, "#8338ec")
-            
             yr_layer = folium.FeatureGroup(name=f"📍 {yr} ({len(yr_df)}處)", show=True)
             for _, d in yr_df.iterrows():
                 d_lat, d_lon = d['緯度'], d['經度']
                 d_gurl = f"https://www.google.com/maps/dir/?api=1&destination={d_lat},{d_lon}"
-                d_popup = (
-                    "<div translate='no' class='notranslate' style='font-family:sans-serif; font-size:13.5px; line-height:1.45;'>"
-                    f"<span style='background:{yr_color}; color:white; padding:2px 6px; border-radius:3px; font-size:11px; font-weight:bold;'>{yr} 災害斑點</span><br/>"
-                    f"<b style='color:#0f172a; font-size:13.5px; margin-top:4px; display:inline-block;'>{d['災害名稱']}</b><br/>"
-                    f"{d['詳細說明']}<br/>"
-                    f"<a href='{d_gurl}' target='_blank' style='display:inline-block; margin-top:5px; padding:3px 8px; background:#4A6B82; color:white; border-radius:4px; text-decoration:none; font-size:12px; font-weight:bold;'>🧭 導航至此災點</a>"
-                    "</div>"
-                )
-                folium.CircleMarker(
-                    location=[d_lat, d_lon],
-                    radius=5.5,
-                    popup=folium.Popup(d_popup, max_width=260),
-                    color="#2b2d42",
-                    weight=1,
-                    fill=True,
-                    fill_color=yr_color,
-                    fill_opacity=0.9
-                ).add_to(yr_layer)
+                d_popup = f"""<div translate='no' class='notranslate' style='font-family:sans-serif; font-size:13.5px; line-height:1.45;'>
+<span style='background:{yr_color}; color:white; padding:2px 6px; border-radius:3px; font-size:11px; font-weight:bold;'>{yr} 災害斑點</span><br/>
+<b style='color:#0f172a; font-size:13.5px; margin-top:4px; display:inline-block;'>{d['災害名稱']}</b><br/>
+{d['詳細說明']}<br/>
+<a href='{d_gurl}' target='_blank' style='display:inline-block; margin-top:5px; padding:3px 8px; background:#4A6B82; color:white; border-radius:4px; text-decoration:none; font-size:12px; font-weight:bold;'>🧭 導航至此災點</a>
+</div>"""
+                folium.CircleMarker(location=[d_lat, d_lon], radius=5.5, popup=folium.Popup(d_popup, max_width=260), color="#2b2d42", weight=1, fill=True, fill_color=yr_color, fill_opacity=0.9).add_to(yr_layer)
             yr_layer.add_to(m_dis)
-
         folium.LayerControl(position="topright", collapsed=True).add_to(m_dis)
-        st_folium(m_dis, width="100%", height=530)
+        st_folium(m_dis, width="100%", height=620)
+
+    if st.button("⬅️ 返回主畫面 (邊坡清冊)", key="map_bottom_back_btn", use_container_width=True, type="primary"):
+        st.session_state.bottom_tab = "📋 邊坡清冊"
+        st.session_state.selected_slope_id = None
+        st.rerun()
 
 # ==============================================================================
-# 5. 4 個功能鍵：橫式排列，位於內容與 LOGO 之間
+# 頁面 5：全新「📝 養護巡查」獨立作業空間（支援外業草稿暫存與 .doc 匯出）
 # ==============================================================================
-nav_cols = st.columns(4)
+elif st.session_state.bottom_tab == "📝 養護巡查":
+    st.markdown("<div class='system-title notranslate' translate='no'>邊坡養護巡查檢測系統</div>", unsafe_allow_html=True)
+    st.caption("📱 外業專用檢測表：支援斷點暫存、接電話防跳出、現場即時相片拍照，並產出公務標準 .doc 檢測文件。")
+
+    # 1. 快速選定口卡編號
+    slope_options = df['口卡編號'].dropna().unique().tolist()
+    default_idx = 0
+    if "target_slope_for_patrol" in st.session_state and st.session_state.target_slope_for_patrol in slope_options:
+        default_idx = slope_options.index(st.session_state.target_slope_for_patrol)
+
+    chosen_code = st.selectbox("🎯 巡查目標口卡編號", slope_options, index=default_idx)
+    target_row = df[df['口卡編號'] == chosen_code].iloc[0]
+
+    # 自動解析可用構造物
+    raw_structs = str(target_row.get('邊坡構造物', '自然邊坡'))
+    avail_structs = [s.strip() for s in re.split(r'[,、]', raw_structs) if s.strip()]
+    if not avail_structs:
+        avail_structs = ["自然邊坡"]
+    avail_structs.append("自然邊坡")
+    avail_structs = list(dict.fromkeys(avail_structs)) # 去除重複
+
+    chosen_struct = st.selectbox("構造物設施類別", avail_structs)
+    tpl_key = match_template(chosen_struct)
+    current_tpl = INSPECTION_TEMPLATES[tpl_key]
+
+    st.info(f"📋 目前依據規範載入：**【{current_tpl['title']}】**（自動帶入 {len(current_tpl['items'])} 項公路局標準檢測規範）")
+
+    # 讀取現有草稿（若曾暫存過）
+    draft = st.session_state.patrol_draft.get(f"{chosen_code}_{chosen_struct}", {})
+
+    # 表單欄位
+    st.markdown("#### 一、 基本檢測環境")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        f_date = st.date_input("檢測日期", draft.get("date", datetime.date.today()))
+    with c2:
+        f_weather = st.selectbox("天氣狀況", ["晴", "陰", "雨"], index=["晴", "陰", "雨"].index(draft.get("weather", "晴")))
+    with c3:
+        f_type = st.selectbox("檢測類別", ["定期檢測", "特別檢測"], index=["定期檢測", "特別檢測"].index(draft.get("type", "定期檢測")))
+
+    c4, c5 = st.columns(2)
+    with c4:
+        st.text_input("養護單位", value="南澳工務段", disabled=True)
+    with c5:
+        loc_str = f"{target_row.get('縣市', '宜蘭縣')}{target_row.get('鄉鎮市區', '')} {target_row.get('路線', '')} {target_row.get('里程樁號(起)', '')}"
+        st.text_input("檢查位置與里程", value=loc_str, disabled=True)
+
+    st.markdown("#### 二、 現場狀況與地質水文")
+    cg1, cg2 = st.columns(2)
+    with cg1:
+        f_geo = st.selectbox("地質狀況", ["土層邊坡", "岩層邊坡", "礫石層邊坡", "其他地質"], index=["土層邊坡", "岩層邊坡", "礫石層邊坡", "其他地質"].index(draft.get("geo", "土層邊坡")))
+    with cg2:
+        f_water = st.selectbox("地下水／排水湧水狀況", ["乾燥", "濕潤", "表面水", "湧水"], index=["乾燥", "濕潤", "表面水", "湧水"].index(draft.get("water", "乾燥")))
+
+    cg3, cg4 = st.columns(2)
+    with cg3:
+        f_drain = st.selectbox("排(洩)水管", ["正常", "阻塞"], index=["正常", "阻塞"].index(draft.get("drain", "正常")))
+    with cg4:
+        f_disaster = st.selectbox("以往災害歷史", ["無", "有"], index=["無", "有"].index(draft.get("disaster", "無")))
+
+    st.markdown("#### 三、 設施類別檢測項目（依公路局規範）")
+    st.caption("結果填寫標準：**○ (正常)** ｜ **× (異常)** ｜ **／ (無此項)**")
+
+    item_results = []
+    draft_items = draft.get("items", {})
+
+    for idx, (iname, iact) in enumerate(current_tpl["items"]):
+        ci1, ci2 = st.columns([0.65, 0.35])
+        with ci1:
+            st.markdown(f"**{iname}**")
+            st.caption(f"養護措施：{iact}")
+        with ci2:
+            prev_res = draft_items.get(iname, {}).get("res", "○ 正常")
+            res_val = st.radio("結果", ["○ 正常", "× 異常", "／ 無此項"], index=["○ 正常", "× 異常", "／ 無此項"].index(prev_res) if prev_res in ["○ 正常", "× 異常", "／ 無此項"] else 0, horizontal=True, key=f"patrol_res_{idx}", label_visibility="collapsed")
+        
+        prev_desc = draft_items.get(iname, {}).get("desc", "")
+        desc_val = ""
+        if "×" in res_val:
+            desc_val = st.text_input(f"【{iname}】異常情形 / 處理說明", value=prev_desc, placeholder="請說明異常狀況與處理建議...", key=f"patrol_desc_{idx}")
+        item_results.append((iname, iact, res_val[0], desc_val))
+        st.markdown("<hr style='margin: 4px 0 10px 0; border: none; border-top: 1px dashed rgba(255,255,255,0.08);' />", unsafe_allow_html=True)
+
+    st.markdown("#### 四、 現地拍照記錄與署名")
+    cp1, cp2 = st.columns(2)
+    with cp1:
+        f_photos = st.file_uploader("📷 上傳照片 (支援多張)", type=["jpg", "png", "jpeg"], accept_multiple_files=True)
+    with cp2:
+        f_camera = st.camera_input("📸 開啟相機直接拍照")
+
+    f_remark = st.text_area("現地綜合備註", value=draft.get("remark", ""), placeholder="其他補充說明...")
+
+    cu1, cu2 = st.columns(2)
+    with cu1:
+        f_inspector = st.text_input("檢測人員姓名 (必填)", value=draft.get("inspector", ""), placeholder="例如：李工程師")
+    with cu2:
+        f_supervisor = st.text_input("單位主管 (選填)", value=draft.get("supervisor", ""), placeholder="例如：段長")
+
+    # 外業斷點作業控制列（暫存 vs 產出正式報表）
+    st.markdown("---")
+    act_col1, act_col2 = st.columns(2)
+
+    with act_col1:
+        if st.button("💾 暫存草稿 (防接電話/跳出頁面遺失)", use_container_width=True):
+            # 儲存至 Session State
+            saved_draft = {
+                "date": f_date, "weather": f_weather, "type": f_type,
+                "geo": f_geo, "water": f_water, "drain": f_drain, "disaster": f_disaster,
+                "remark": f_remark, "inspector": f_inspector, "supervisor": f_supervisor,
+                "items": {item[0]: {"res": item[2], "desc": item[3]} for item in item_results}
+            }
+            st.session_state.patrol_draft[f"{chosen_code}_{chosen_struct}"] = saved_draft
+            st.success("✅ 草稿已暫存！即便接電話、關閉頁面或跳到其他分頁，再回來內容都在。")
+
+    with act_col2:
+        # 產製報表資料集
+        export_filename = f"邊坡口卡編號{chosen_code}-構造物{chosen_struct}.doc"
+        report_data = {
+            "title": current_tpl["title"],
+            "code": chosen_code,
+            "date": f_date.strftime("%Y年%m月%d日"),
+            "weather": f_weather,
+            "unit": "南澳工務段",
+            "location": loc_str,
+            "geo": f_geo,
+            "water": f_water,
+            "height": target_row.get("坡高", "—"),
+            "slope": target_row.get("坡度", "—"),
+            "width": target_row.get("邊坡面寬", "—"),
+            "drain": f_drain,
+            "disaster": f_disaster,
+            "check_rows": item_results,
+            "remark": f_remark,
+            "inspector": f_inspector,
+            "supervisor": f_supervisor
+        }
+
+        # 讀取上傳與拍攝之照片 Bytes
+        photo_bytes_list = []
+        if f_photos:
+            for p in f_photos:
+                photo_bytes_list.append(p.getvalue())
+        if f_camera:
+            photo_bytes_list.append(f_camera.getvalue())
+
+        doc_bytes = generate_doc_report(report_data, photo_bytes_list)
+
+        st.download_button(
+            label=f"📥 產出並下載 {export_filename}",
+            data=doc_bytes,
+            file_name=export_filename,
+            mime="application/msword",
+            type="primary",
+            use_container_width=True
+        )
+
+# ==============================================================================
+# 底部 5 功能導航條（橫式排列：包含全新 📝 養護巡查）
+# ==============================================================================
+nav_cols = st.columns(5)
 with nav_cols[0]:
     if st.button("📋 邊坡清冊", key="nav_btn_1", use_container_width=True, type="primary" if st.session_state.bottom_tab == "📋 邊坡清冊" else "secondary"):
         st.session_state.bottom_tab = "📋 邊坡清冊"
@@ -882,42 +604,10 @@ with nav_cols[3]:
         st.session_state.selected_slope_id = None
         st.rerun()
 
-# ==============================================================================
-# 6. 單位識別頁尾：保持在全頁面最底端
-# ==============================================================================
-LOGO_VECTOR_SVG = (
-    "<svg class='app-official-logo notranslate' viewBox='0 0 818 138' fill='none' xmlns='http://www.w3.org/2000/svg' translate='no'>"
-    "<path d='M409 69C409 30.89 439.89 0 478 0C516.11 0 547 30.89 547 69C547 107.11 516.11 138 478 138C439.89 138 409 107.11 409 69Z' fill='#E62117'/>"
-    "<path d='M478 14C447.62 14 423 38.62 423 69C423 99.38 447.62 124 478 124C508.38 124 533 99.38 533 69C533 38.62 508.38 14 478 14ZM478 110C455.36 110 437 91.64 437 69C437 46.36 455.36 28 478 28C500.64 28 519 46.36 519 69C519 91.64 500.64 110 478 110Z' fill='white'/>"
-    "<path d='M0 24L380 24C395 24 402 36 388 48L70 48C50 48 30 40 0 24Z' fill='#1E50A2'/>"
-    "<path d='M818 24L438 24C423 24 416 36 430 48L748 48C768 48 788 40 818 24Z' fill='#1E50A2'/>"
-    "<path d='M60 56L370 56C382 56 388 66 376 76L120 76C100 76 80 70 60 56Z' fill='#0080FF'/>"
-    "<path d='M758 56L448 56C436 56 430 66 442 76L698 76C718 76 738 70 758 56Z' fill='#0080FF'/>"
-    "<path d='M120 86L360 86C370 86 375 94 365 102L170 102C150 102 135 96 120 86Z' fill='#00BFFF'/>"
-    "<path d='M698 86L458 86C448 86 443 94 453 102L648 102C668 102 683 96 698 86Z' fill='#00BFFF'/>"
-    "</svg>"
-)
+with nav_cols[4]:
+    if st.button("📝 養護巡查", key="nav_btn_5", use_container_width=True, type="primary" if st.session_state.bottom_tab == "📝 養護巡查" else "secondary"):
+        st.session_state.bottom_tab = "📝 養護巡查"
+        st.rerun()
 
-logo_render = LOGO_VECTOR_SVG
-for possible_logo in ["LOGO.webp", "LOGO.png", "logo.png", "logo.webp"]:
-    if os.path.exists(possible_logo):
-        try:
-            with open(possible_logo, "rb") as f:
-                b64_val = base64.b64encode(f.read()).decode()
-                ext = "webp" if possible_logo.endswith("webp") else "png"
-                logo_render = f"<img class='app-official-logo notranslate' src='data:image/{ext};base64,{b64_val}' alt='公路局LOGO' translate='no' />"
-                break
-        except Exception:
-            pass
-
-footer_bottom_html = (
-    "<div class='app-official-footer-bottom notranslate' translate='no'>"
-    "  <div class='footer-title-row'>"
-    f"    {logo_render}"
-    "    <span class='app-official-text notranslate' translate='no'>交通部公路局東區養護工程分局南澳工務段</span>"
-    "  </div>"
-    "  <div class='app-official-source notranslate' translate='no'>本網頁資料來源：邊坡全生命週期管理系統</div>"
-    "</div>"
-)
-
-st.markdown(footer_bottom_html, unsafe_allow_html=True)
+# 頁尾 LOGO
+st.markdown(render_footer(), unsafe_allow_html=True)
