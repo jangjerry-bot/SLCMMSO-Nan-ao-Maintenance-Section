@@ -10,12 +10,12 @@ import zipfile
 import xml.etree.ElementTree as ET
 import re
 from PIL import Image
-import io
 
-# 匯入樣式與規範模組
+# 匯入樣式模組與標準檢測規範模組
 from style import get_theme_css, render_footer
 from inspection_schema import INSPECTION_TEMPLATES, match_template, generate_doc_report
 
+# 1. 頁面設定 (必須為 Streamlit 第一個執行的指令)
 st.set_page_config(
     page_title="南澳邊坡全生命週期資料庫",
     page_icon="⛰️",
@@ -23,9 +23,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 狀態管理
+# 2. 主題與狀態管理（預設 ☀️ 淺色白底）
 if "theme_mode" not in st.session_state:
-    st.session_state.theme_mode = "🌙 深色黑底"
+    st.session_state.theme_mode = "☀️ 淺色白底"
 if "bottom_tab" not in st.session_state:
     st.session_state.bottom_tab = "📋 邊坡清冊"
 if "selected_slope_id" not in st.session_state:
@@ -40,6 +40,7 @@ if "patrol_draft" not in st.session_state:
 is_light = (st.session_state.theme_mode == "☀️ 淺色白底")
 plotly_font_color = "#0f172a" if is_light else "#f8fafc"
 
+# 載入動態滿版響應式樣式
 st.markdown(get_theme_css(is_light), unsafe_allow_html=True)
 
 # 頂部色彩模式切換
@@ -48,7 +49,7 @@ with col_top_theme:
     selected_theme = st.radio(
         "色彩模式",
         ["🌙 深色黑底", "☀️ 淺色白底"],
-        index=0 if st.session_state.theme_mode == "🌙 深色黑底" else 1,
+        index=1 if st.session_state.theme_mode == "☀️ 淺色白底" else 0,
         horizontal=True,
         label_visibility="collapsed"
     )
@@ -212,7 +213,6 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
             desc_html = f"""<div class='app-card notranslate' translate='no' style='background:rgba(74, 107, 130, 0.12); border-left:4px solid #4A6B82; line-height:1.5; font-size:14px;'>{desc_val}</div>"""
             st.markdown(desc_html, unsafe_allow_html=True)
 
-            # 快速導流鍵：直接帶此卡號進入「養護巡查」
             if st.button("📝 前往填寫此邊坡之「養護巡查檢測表」", type="primary", use_container_width=True):
                 st.session_state.bottom_tab = "📝 養護巡查"
                 st.session_state.target_slope_for_patrol = row['口卡編號']
@@ -441,7 +441,7 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
     if not avail_structs:
         avail_structs = ["自然邊坡"]
     avail_structs.append("自然邊坡")
-    avail_structs = list(dict.fromkeys(avail_structs)) # 去除重複
+    avail_structs = list(dict.fromkeys(avail_structs))
 
     chosen_struct = st.selectbox("構造物設施類別", avail_structs)
     tpl_key = match_template(chosen_struct)
@@ -525,7 +525,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
 
     with act_col1:
         if st.button("💾 暫存草稿 (防接電話/跳出頁面遺失)", use_container_width=True):
-            # 儲存至 Session State
             saved_draft = {
                 "date": f_date, "weather": f_weather, "type": f_type,
                 "geo": f_geo, "water": f_water, "drain": f_drain, "disaster": f_disaster,
@@ -536,29 +535,36 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
             st.success("✅ 草稿已暫存！即便接電話、關閉頁面或跳到其他分頁，再回來內容都在。")
 
     with act_col2:
-        # 產製報表資料集
         export_filename = f"邊坡口卡編號{chosen_code}-構造物{chosen_struct}.doc"
+        
         report_data = {
-            "title": current_tpl["title"],
+            "title": current_tpl.get("title"),
+            "category_col_header": current_tpl.get("category_col_header"),
+            "category_name": current_tpl.get("category_name"),
+            "dim_title": current_tpl.get("dim_title"),
+            "dim_h_label": current_tpl.get("dim_h_label"),
+            "dim_w_label": current_tpl.get("dim_w_label"),
             "code": chosen_code,
             "date": f_date.strftime("%Y年%m月%d日"),
             "weather": f_weather,
+            "type": f_type,
             "unit": "南澳工務段",
-            "location": loc_str,
+            "location": f"{target_row.get('鄉鎮市區', '蘇澳鎮')} {target_row.get('路線', '')} {target_row.get('里程樁號(起)', '')}",
+            "direction": target_row.get("方向", "北下"),
             "geo": f_geo,
+            "height": target_row.get("坡高", "30"),
+            "slope": target_row.get("坡度", "85"),
+            "width": target_row.get("邊坡面寬", "200"),
             "water": f_water,
-            "height": target_row.get("坡高", "—"),
-            "slope": target_row.get("坡度", "—"),
-            "width": target_row.get("邊坡面寬", "—"),
             "drain": f_drain,
-            "disaster": f_disaster,
+            "survey_month": f_date.month,
+            "rain_days": "3",
             "check_rows": item_results,
-            "remark": f_remark,
+            "remark": f_remark.strip() if f_remark.strip() else current_tpl.get("remark_default", ""),
             "inspector": f_inspector,
             "supervisor": f_supervisor
         }
 
-        # 讀取上傳與拍攝之照片 Bytes
         photo_bytes_list = []
         if f_photos:
             for p in f_photos:
@@ -578,7 +584,7 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
         )
 
 # ==============================================================================
-# 底部 5 功能導航條（橫式排列：包含全新 📝 養護巡查）
+# 底部 5 功能導航條（橫式排列：包含 📝 養護巡查）
 # ==============================================================================
 nav_cols = st.columns(5)
 with nav_cols[0]:
