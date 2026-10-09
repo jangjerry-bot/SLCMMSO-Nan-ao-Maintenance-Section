@@ -40,7 +40,6 @@ def get_theme_css(is_light: bool) -> str:
             --link-color: #60a5fa;
         """
 
-    # 1. 乾淨無縮排的 HTML 動畫結構
     splash_overlay_html = (
         '<div id="geo-splash-overlay">'
         '<div class="geo-splash-center">'
@@ -79,14 +78,12 @@ def get_theme_css(is_light: bool) -> str:
         '</div>'
     )
 
-    # 2. 徹底解決透明度衝突的純 CSS 動畫樣式
     css_template = """
 <style>
     :root {
         __THEME_VARS__
     }
 
-    /* 遮罩：2.4 秒後平滑淡出，不阻擋後續點擊操作 */
     #geo-splash-overlay {
         position: fixed;
         top: 0;
@@ -120,8 +117,6 @@ def get_theme_css(is_light: bool) -> str:
         height: auto;
         filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.6));
     }
-
-    /* 標題與副標題：自然滑入淡現 */
     .geo-splash-title {
         color: #f8fafc;
         font-size: clamp(20px, 2.8vw, 26px);
@@ -139,20 +134,10 @@ def get_theme_css(is_light: bool) -> str:
         animation: titleFadeIn 1.0s ease-out;
     }
 
-    /* 空間軸線與網格 */
-    .geo-mesh-grid {
-        animation: meshPop 0.8s ease-out;
-    }
-    .geo-red-axis {
-        animation: meshPop 0.6s ease-out;
-    }
+    .geo-mesh-grid { animation: meshPop 0.8s ease-out; }
+    .geo-red-axis { animation: meshPop 0.6s ease-out; }
+    .geo-base-layer, .geo-slope-prism, .geo-seepage-mass { animation: modelRise 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
 
-    /* 核心 3D 模型本體 */
-    .geo-base-layer, .geo-slope-prism, .geo-seepage-mass {
-        animation: modelRise 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    /* 鮮紅剪裂面破壞線與天藍水流弧光軌動態描繪 */
     .geo-red-crest {
         stroke-dasharray: 200;
         stroke-dashoffset: 200;
@@ -178,21 +163,10 @@ def get_theme_css(is_light: bool) -> str:
         filter: drop-shadow(0 0 5px #0ea5e9);
     }
 
-    @keyframes drawLine {
-        to { stroke-dashoffset: 0; }
-    }
-    @keyframes modelRise {
-        from { transform: translateY(12px); opacity: 0.2; }
-        to { transform: translateY(0); opacity: 1; }
-    }
-    @keyframes meshPop {
-        from { transform: scale(0.92); opacity: 0.1; }
-        to { transform: scale(1); opacity: 1; }
-    }
-    @keyframes titleFadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+    @keyframes drawLine { to { stroke-dashoffset: 0; } }
+    @keyframes modelRise { from { transform: translateY(12px); opacity: 0.2; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes meshPop { from { transform: scale(0.92); opacity: 0.1; } to { transform: scale(1); opacity: 1; } }
+    @keyframes titleFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
     html, body, [class*="css"] {
         color: var(--text-main) !important;
@@ -209,10 +183,10 @@ def get_theme_css(is_light: bool) -> str:
     .block-container {
         max-width: 100% !important;
         width: 100% !important;
-        padding-top: clamp(3.2rem, 5vh, 4.5rem) !important;
-        padding-bottom: clamp(3.5rem, 6vh, 5rem) !important;
-        padding-left: clamp(12px, 2.5vw, 36px) !important;
-        padding-right: clamp(12px, 2.5vw, 36px) !important;
+        padding-top: clamp(2.5rem, 4vh, 4rem) !important;
+        padding-bottom: clamp(3rem, 5vh, 4.5rem) !important;
+        padding-left: clamp(10px, 2.5vw, 32px) !important;
+        padding-right: clamp(10px, 2.5vw, 32px) !important;
         margin: 0 auto !important;
     }
     
@@ -222,16 +196,16 @@ def get_theme_css(is_light: bool) -> str:
         align-items: center !important;
         justify-content: center !important;
         margin-top: 4px !important;
-        margin-bottom: 16px !important;
+        margin-bottom: 14px !important;
     }
     .app-top-logo {
-        width: clamp(54px, 6.2vw, 70px) !important;
+        width: clamp(52px, 6vw, 68px) !important;
         height: auto !important;
         margin-bottom: 6px !important;
         filter: drop-shadow(0 4px 10px rgba(56, 189, 248, 0.25)) !important;
     }
     .system-title {
-        font-size: clamp(22px, 3.2vw, 30px) !important;
+        font-size: clamp(21px, 3.2vw, 29px) !important;
         line-height: 1.35 !important;
         font-weight: 900 !important;
         letter-spacing: 1.2px !important;
@@ -239,8 +213,7 @@ def get_theme_css(is_light: bool) -> str:
         text-align: center !important;
         display: block !important;
         width: 100% !important;
-        margin-top: 0px !important;
-        margin-bottom: 0px !important;
+        margin: 0 !important;
     }
 
     .map-sub-title {
@@ -261,7 +234,7 @@ def get_theme_css(is_light: bool) -> str:
     html body .stApp div[data-testid^="st"] label span {
         color: var(--text-main) !important;
         font-weight: 700 !important;
-        font-size: 14.5px !important;
+        font-size: 14px !important;
     }
 
     html body .stApp div[data-testid="stSelectbox"] div[data-baseweb="select"],
@@ -440,13 +413,14 @@ def get_theme_css(is_light: bool) -> str:
     button[key="badge_btn_D"] { background-color: #059669 !important; border: 1px solid #047857 !important; color: #ffffff !important; font-weight: 800 !important; }
     button[key="badge_btn_其他"] { background-color: #475569 !important; border: 1px solid #334155 !important; color: #ffffff !important; font-weight: 800 !important; }
 
+    /* 底部導航按鈕容器優化 */
     div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         gap: clamp(4px, 1vw, 10px) !important;
         width: 100% !important;
-        margin-top: 22px !important;
+        margin-top: 18px !important;
         margin-bottom: 12px !important;
     }
     div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) > div {
@@ -454,61 +428,90 @@ def get_theme_css(is_light: bool) -> str:
         min-width: 0 !important;
     }
     div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) button {
-        padding-left: clamp(2px, 0.6vw, 8px) !important;
-        padding-right: clamp(2px, 0.6vw, 8px) !important;
-        font-size: clamp(12px, 1.4vw, 15px) !important;
+        padding-left: clamp(2px, 0.5vw, 6px) !important;
+        padding-right: clamp(2px, 0.5vw, 6px) !important;
+        font-size: clamp(12px, 1.35vw, 15px) !important;
         white-space: nowrap !important;
         overflow: hidden !important;
         text-overflow: ellipsis !important;
-        height: clamp(38px, 4.8vh, 44px) !important;
+        height: clamp(38px, 4.5vh, 44px) !important;
     }
 
+    /* 單位識別頁尾：極致響應式，在電腦與手機上皆完美適配，絕不破框 */
     .app-official-footer-bottom {
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        margin-top: 18px !important;
-        margin-bottom: 26px !important;
-        padding: clamp(14px, 2.2vw, 22px) !important;
+        margin-top: 16px !important;
+        margin-bottom: 24px !important;
+        padding: clamp(12px, 2.5vw, 18px) !important;
         background: var(--footer-bg) !important;
         border-radius: 12px !important;
         border: 1px solid var(--footer-border) !important;
         width: 100% !important;
+        box-sizing: border-box !important;
     }
     .footer-title-row {
         display: flex !important;
+        flex-direction: row !important;
         align-items: center !important;
         justify-content: center !important;
-        gap: clamp(10px, 1.5vw, 14px) !important;
+        flex-wrap: wrap !important;
+        gap: clamp(8px, 1.5vw, 14px) !important;
+        width: 100% !important;
+        text-align: center !important;
     }
     .app-official-logo { 
-        height: clamp(32px, 4.2vw, 42px) !important; 
+        height: clamp(26px, 3.8vw, 36px) !important; 
         width: auto !important; 
+        max-width: 100% !important;
         display: inline-block !important; 
         vertical-align: middle !important; 
     }
     .app-official-text {
-        font-size: clamp(15px, 2.0vw, 18px) !important;
+        font-size: clamp(13px, 1.7vw, 16.5px) !important;
         font-weight: 800 !important;
         color: var(--footer-text) !important;
-        letter-spacing: 0.6px !important;
-        white-space: nowrap !important;
-        line-height: clamp(32px, 4.2vw, 42px) !important;
+        letter-spacing: 0.5px !important;
+        line-height: 1.4 !important;
+        text-align: center !important;
     }
     .app-official-source {
-        font-size: clamp(11.5px, 1.4vw, 13px) !important;
+        font-size: clamp(11px, 1.3vw, 12.5px) !important;
         font-weight: 500 !important;
         color: var(--text-muted) !important;
-        margin-top: 6px !important;
-        letter-spacing: 0.4px !important;
+        margin-top: 8px !important;
+        letter-spacing: 0.3px !important;
         text-align: center !important;
+        line-height: 1.5 !important;
+        width: 100% !important;
+        word-break: break-word !important;
     }
     .app-official-source a {
         color: var(--link-color) !important;
         text-decoration: underline !important;
         font-weight: 600 !important;
-        word-break: break-all !important;
+        display: inline-block !important;
+        margin-left: 3px !important;
+    }
+
+    /* 手機直向窄螢幕專屬微調 (< 480px)：LOGO 與名稱自動置中優雅折疊 */
+    @media (max-width: 480px) {
+        .footer-title-row {
+            flex-direction: column !important;
+            gap: 6px !important;
+        }
+        .app-official-logo {
+            height: 28px !important;
+        }
+        .app-official-text {
+            font-size: 13.5px !important;
+            letter-spacing: 0.3px !important;
+        }
+        .app-official-source {
+            font-size: 11px !important;
+        }
     }
 </style>
 """
@@ -553,7 +556,7 @@ def render_footer() -> str:
         "  <div class='app-official-source notranslate' translate='no'>"
         "    本網頁資料來源：邊坡全生命週期管理系統 "
         "    <a href='https://slope.thb.gov.tw/thbslope' target='_blank' rel='noopener noreferrer'>"
-        "       https://slope.thb.gov.tw/thbslope"
+        "      https://slope.thb.gov.tw/thbslope"
         "    </a>"
         "  </div>"
         "</div>"
