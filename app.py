@@ -1,18 +1,32 @@
+import os
 import streamlit as st
 import pandas as pd
 import folium
 from folium.plugins import LocateControl
 from streamlit_folium import st_folium
 import plotly.express as px
-import os
 import datetime
 import zipfile
 import xml.etree.ElementTree as ET
 import re
 from PIL import Image
 
+# 自動防呆建立 .streamlit/config.toml 設定檔，徹底根除底層暗色注入
+os.makedirs(".streamlit", exist_ok=True)
+config_path = os.path.join(".streamlit", "config.toml")
+config_content = """[theme]
+base = "light"
+primaryColor = "#4A6B82"
+backgroundColor = "#f8fafc"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0f172a"
+"""
+if not os.path.exists(config_path) or open(config_path, "r", encoding="utf-8").read() != config_content:
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(config_content)
+
 # 匯入樣式模組與標準檢測規範模組
-from style import get_theme_css, render_footer
+from style import get_theme_css, render_footer, render_top_logo
 from inspection_schema import INSPECTION_TEMPLATES, match_template, generate_doc_report
 
 # 1. 頁面設定 (必須為 Streamlit 第一個執行的指令)
@@ -219,7 +233,8 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 st.rerun()
 
     else:
-        st.markdown("<div class='system-title notranslate' translate='no'>南澳邊坡全生命週期資料庫</div>", unsafe_allow_html=True)
+        # 首頁頂部調用 GeoStudio 3D 幾何專屬 LOGO 與標題
+        st.markdown(render_top_logo(), unsafe_allow_html=True)
 
         col_f1, col_f2 = st.columns(2)
         with col_f1:
