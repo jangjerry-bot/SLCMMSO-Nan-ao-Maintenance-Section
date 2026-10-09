@@ -553,7 +553,7 @@ def render_footer() -> str:
         "  <div class='app-official-source notranslate' translate='no'>"
         "    本網頁資料來源：邊坡全生命週期管理系統 "
         "    <a href='https://slope.thb.gov.tw/thbslope' target='_blank' rel='noopener noreferrer'>"
-        "      網址https://slope.thb.gov.tw/thbslope"
+        "       https://slope.thb.gov.tw/thbslope"
         "    </a>"
         "  </div>"
         "</div>"
