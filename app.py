@@ -77,7 +77,7 @@ with col_top_theme:
 st.markdown(render_top_logo(), unsafe_allow_html=True)
 
 # ==============================================================================
-# ★★★ 5 大功能導航鍵：置頂於主標題下方、篩選條件上方 ★★★
+# 5 大功能導航鍵：置頂於主標題下方、篩選條件上方
 # ==============================================================================
 tabs = ["📋 邊坡清冊", "📊 定量定性", "🗺️ 地圖定位", "🔥 災害斑點", "📝 養護巡查"]
 nav_cols = st.columns(5)
@@ -109,6 +109,23 @@ def load_data():
     df['起點經度'] = pd.to_numeric(df['起點經度'], errors='coerce')
     df['定性分級'] = df['定性分級'].fillna('其他').astype(str).str.strip()
     df['定量分級'] = df['定量分級'].apply(normalize_quant) if '定量分級' in df.columns else "未施作"
+    
+    # 欄位防呆補齊
+    if '邊坡構造物' not in df.columns:
+        df['邊坡構造物'] = "自然邊坡"
+    else:
+        df['邊坡構造物'] = df['邊坡構造物'].fillna("自然邊坡").astype(str)
+        
+    if '方向' not in df.columns:
+        df['方向'] = "順樁"
+    else:
+        df['方向'] = df['方向'].fillna("順樁").astype(str)
+
+    if '邊坡方向' not in df.columns:
+        df['邊坡方向'] = "上邊坡"
+    else:
+        df['邊坡方向'] = df['邊坡方向'].fillna("上邊坡").astype(str)
+
     return df
 
 @st.cache_data
@@ -162,7 +179,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
 <span style='font-size:19px; font-weight:700;'>📍 {row['路線']} {row['里程樁號(起)']}</span>
 <span class='badge badge-{q_grade}'>{q_grade} 級</span>
 </div>
-<div style='font-family:monospace; font-size:12.5px; color:var(--text-muted); margin-top:3px;'>口卡：{row['口卡編號']}</div>
+<div style='font-family:monospace; font-size:12.5px; color:var(--text-muted); margin-top:3px;'>邊坡口卡：{row['口卡編號']} ｜ 方向：{row.get('方向', '順樁')} ｜ 邊坡：{row.get('邊坡方向', '上邊坡')}</div>
 <div style='font-size:14px; font-weight:600; color:#4A6B82; margin-top:4px;'>構造物：{row.get('邊坡構造物', '自然邊坡')}</div>
 </div>"""
             st.markdown(card_top, unsafe_allow_html=True)
@@ -182,6 +199,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 ("邊坡狀態", str(row.get('邊坡狀態', '無'))),
                 ("工務段", str(row.get('工務段', '南澳工務段'))),
                 ("路線 / 里程", f"{row.get('路線', '')} {row.get('里程樁號(起)', '')}"),
+                ("順逆樁 / 邊坡方向", f"{row.get('方向', '順樁')} / {row.get('邊坡方向', '上邊坡')}"),
                 ("起點經緯度", f"{r_lon:.5f}, {r_lat:.5f}" if pd.notna(r_lat) else "無"),
                 ("坡高 / 坡度 / 面寬", f"{row.get('坡高', '')}m / {row.get('坡度', '')}° / {row.get('邊坡面寬', '')}m"),
                 ("定性 / 定量分級", f"{q_grade}級 / {row.get('定量分級', '未施作')}"),
@@ -206,12 +224,18 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
         with col_f2:
             qual_filter = st.selectbox("分級篩選", ["全部分級", "A", "B", "C", "D", "其他"])
 
-        search_kw = st.text_input("🔍 搜尋里程、卡號或地名", placeholder="例如: 8k+600、隘丁")
+        # 支援里程、卡號、地名以及構造物設施檢索
+        search_kw = st.text_input("🔍 搜尋里程、卡號、地名或構造物設施", placeholder="例如: 8k+600、隘丁、噴凝土護坡、地錨")
         f_df = df.copy()
         if route_filter != "全部路線": f_df = f_df[f_df['路線'] == route_filter]
         if qual_filter != "全部分級": f_df = f_df[f_df['定性分級'] == qual_filter]
         if search_kw:
-            f_df = f_df[f_df['口卡編號'].astype(str).str.contains(search_kw, case=False) | f_df['里程樁號(起)'].astype(str).str.contains(search_kw, case=False) | f_df['附近地名'].astype(str).str.contains(search_kw, case=False)]
+            kw = search_kw.strip()
+            cond_id = f_df['口卡編號'].astype(str).str.contains(kw, case=False, na=False)
+            cond_mileage = f_df['里程樁號(起)'].astype(str).str.contains(kw, case=False, na=False)
+            cond_place = f_df['附近地名'].astype(str).str.contains(kw, case=False, na=False)
+            cond_struct = f_df['邊坡構造物'].astype(str).str.contains(kw, case=False, na=False)
+            f_df = f_df[cond_id | cond_mileage | cond_place | cond_struct]
 
         q_counts = f_df['定性分級'].value_counts()
         st.caption(f"符合條件邊坡：**{len(f_df)}** 處（總資產：{len(df)} 處） 點擊下方各級按鈕查看對應樁號：")
@@ -247,11 +271,15 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 display_df = sub_df if show_all else sub_df.head(10)
                 for _, r in display_df.iterrows():
                     grade = str(r['定性分級'])
+                    struct_info = str(r.get('邊坡構造物', '自然邊坡')).strip()
+                    pile_dir = str(r.get('方向', '順樁')).strip()
+                    slope_dir = str(r.get('邊坡方向', '上邊坡')).strip()
                     with st.container(border=True):
                         if st.button(f"📍 {r['里程樁號(起)']}  [{grade}級]", key=f"pick_{r['口卡編號']}", use_container_width=True):
                             st.session_state.selected_slope_id = r['口卡編號']
                             st.rerun()
-                        st.caption(f"卡號：`{r['口卡編號']}` ｜ 構造：`{r.get('邊坡構造物', '自然邊坡')[:18]}`")
+                        # 修正標籤名稱為「邊坡口卡」、完整顯示構造物名稱、加入順逆樁與上下邊坡
+                        st.caption(f"邊坡口卡：`{r['口卡編號']}` ｜ 方向：`{pile_dir}` ｜ 邊坡：`{slope_dir}` ｜ 構造：`{struct_info}`")
 
 # ==============================================================================
 # 頁面 2：定量定性分級統計
@@ -380,7 +408,7 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
         item_results.append((iname, iact, res_val[0], desc_val))
 
     # ==============================================================================
-    # ★★★ 全新相機架構：全螢幕取景、多張連拍累積、縮圖預覽與隨時 ❌ 刪除 ★★★
+    # 全新相機架構：全螢幕取景、多張連拍累積、縮圖預覽與隨時 ❌ 刪除
     # ==============================================================================
     st.markdown("#### 四、 現地拍照記錄與署名")
     st.caption("💡 **全螢幕拍照指引**：點擊下方按鈕可啟動手機/平板**全螢幕原生相機**（支援廣角、望遠與前後切換），拍完的照片會即時存入下方相簿，滿意才留、**拍壞可隨時點擊 ❌ 刪除**！")
@@ -449,7 +477,7 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
             "type": f_type,
             "unit": "南澳工務段",
             "location": f"{target_row.get('鄉鎮市區', '蘇澳鎮')} {target_row.get('路線', '')} {target_row.get('里程樁號(起)', '')}",
-            "direction": target_row.get("方向", "北下"),
+            "direction": target_row.get("方向", "順樁"),
             "geo": f_geo,
             "height": target_row.get("坡高", "30"),
             "slope": target_row.get("坡度", "85"),
