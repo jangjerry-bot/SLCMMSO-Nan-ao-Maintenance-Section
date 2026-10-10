@@ -48,6 +48,12 @@ if "active_grade_detail" not in st.session_state:
 if "patrol_draft" not in st.session_state:
     st.session_state.patrol_draft = {}
 
+# 外業巡查照片簿與上傳器計數器（支援累積拍照與隨時刪除）
+if "patrol_photos" not in st.session_state:
+    st.session_state.patrol_photos = []
+if "uploader_key" not in st.session_state:
+    st.session_state.uploader_key = 0
+
 is_light = (st.session_state.theme_mode == "☀️ 淺色白底")
 plotly_font_color = "#0f172a" if is_light else "#f8fafc"
 
@@ -67,11 +73,11 @@ with col_top_theme:
         st.session_state.theme_mode = selected_theme
         st.rerun()
 
-# 頂部 LOGO 與標題 (3D 向量 LOGO 水平並排於「南澳」文字前)
+# 頂部 LOGO 與標題 (水平並排)
 st.markdown(render_top_logo(), unsafe_allow_html=True)
 
 # ==============================================================================
-# ★★★ 5 大功能導航鍵：直接置頂於標題正下方、篩選條件上方 ★★★
+# ★★★ 5 大功能導航鍵：置頂於主標題下方、篩選條件上方 ★★★
 # ==============================================================================
 tabs = ["📋 邊坡清冊", "📊 定量定性", "🗺️ 地圖定位", "🔥 災害斑點", "📝 養護巡查"]
 nav_cols = st.columns(5)
@@ -326,11 +332,11 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         st_folium(m_dis, width="100%", height=600)
 
 # ==============================================================================
-# 頁面 5：養護巡查
+# 頁面 5：養護巡查（支援手機全螢幕原生相機取景、多張連拍累積與縮圖隨時 ❌ 刪除）
 # ==============================================================================
 elif st.session_state.bottom_tab == "📝 養護巡查":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡養護巡查檢測系統</div>", unsafe_allow_html=True)
-    st.caption("📱 外業專用檢測表：支援斷點暫存、接電話防跳出、即時拍照，並產出公務標準 .doc 文件。")
+    st.caption("📱 外業專用檢測表：支援全螢幕相機取景、多張連拍存查、斷點草稿防跳出，並產出公務標準 .doc 文件。")
 
     slope_opts = df['口卡編號'].dropna().unique().tolist()
     def_idx = slope_opts.index(st.session_state.target_slope_for_patrol) if "target_slope_for_patrol" in st.session_state and st.session_state.target_slope_for_patrol in slope_opts else 0
@@ -373,23 +379,45 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
         desc_val = st.text_input(f"【{iname}】異常情形/處理說明", value=draft_items.get(iname, {}).get("desc", ""), key=f"patrol_desc_{idx}") if "×" in res_val else ""
         item_results.append((iname, iact, res_val[0], desc_val))
 
-    # ==========================================================================
-    # ★★★ 相機與照片記錄升級：原生手機/平板主相機、前後翻轉與連拍多選 ★★★
-    # ==========================================================================
+    # ==============================================================================
+    # ★★★ 全新相機架構：全螢幕取景、多張連拍累積、縮圖預覽與隨時 ❌ 刪除 ★★★
+    # ==============================================================================
     st.markdown("#### 四、 現地拍照記錄與署名")
-    st.caption("💡 **外業拍照建議**：點擊下方 **「📸 開啟相機拍照／相簿多選」**，系統將直接啟動行動裝置的原生相機，**可自由翻轉切換後置主鏡頭、超廣角 (0.5x) 或望遠鏡頭**，並支援連續拍攝多張邊坡照片！")
+    st.caption("💡 **全螢幕拍照指引**：點擊下方按鈕可啟動手機/平板**全螢幕原生相機**（支援廣角、望遠與前後切換），拍完的照片會即時存入下方相簿，滿意才留、**拍壞可隨時點擊 ❌ 刪除**！")
 
-    cp1, cp2 = st.columns(2)
-    with cp1:
-        f_photos = st.file_uploader(
-            "📸 開啟相機拍照／相簿多選 (推薦，原生支援切換前後鏡頭與超廣角)",
-            type=["jpg", "png", "jpeg"],
-            accept_multiple_files=True,
-            help="手機或平板點擊即可調用原生相機拍攝，支援後置鏡頭翻轉、望遠與連續多張拍攝。"
-        )
-    with cp2:
-        f_camera = st.camera_input("📷 網頁即時拍照 (單張快速紀錄)")
+    # 全螢幕原生相機觸發器
+    new_captured = st.file_uploader(
+        "📸 點擊開啟手機／平板全螢幕相機拍照 (或選取相簿照片)",
+        type=["jpg", "png", "jpeg"],
+        accept_multiple_files=True,
+        key=f"uploader_input_{st.session_state.uploader_key}",
+        help="手機點擊此處選擇「拍照或錄影」，即可展開全螢幕原生相機模式進行拍攝。"
+    )
 
+    # 當有新拍攝的照片，自動累積存入相片簿並更新上傳器
+    if new_captured:
+        for f in new_captured:
+            st.session_state.patrol_photos.append(f.getvalue())
+        st.session_state.uploader_key += 1
+        st.rerun()
+
+    # 縮圖展示與打叉刪除區塊
+    if st.session_state.patrol_photos:
+        st.markdown(f"##### 📸 已確認留存之檢測相片（目前共 {len(st.session_state.patrol_photos)} 張，點擊 ❌ 可隨時刪除）：")
+        photo_cols = st.columns(3)
+        photo_to_delete = None
+        for p_idx, p_data in enumerate(st.session_state.patrol_photos):
+            with photo_cols[p_idx % 3]:
+                st.image(p_data, caption=f"相片 {p_idx+1}", use_container_width=True)
+                if st.button(f"❌ 刪除相片 {p_idx+1}", key=f"del_btn_{p_idx}", use_container_width=True):
+                    photo_to_delete = p_idx
+        if photo_to_delete is not None:
+            st.session_state.patrol_photos.pop(photo_to_delete)
+            st.rerun()
+    else:
+        st.info("ℹ️ 現地巡查相簿目前尚無照片，請點擊上方按鈕開啟全螢幕相機拍攝邊坡現況。")
+
+    st.markdown("---")
     f_remark = st.text_area("現地綜合備註", value=draft.get("remark", ""), placeholder="請輸入邊坡現況其他補充說明...")
     cu1, cu2 = st.columns(2)
     with cu1: f_inspector = st.text_input("檢測人員姓名 (必填)", value=draft.get("inspector", ""), placeholder="例如：李工程師")
@@ -401,9 +429,10 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
             st.session_state.patrol_draft[f"{chosen_code}_{chosen_struct}"] = {
                 "date": f_date, "weather": f_weather, "type": f_type, "geo": f_geo, "water": f_water,
                 "drain": f_drain, "disaster": f_disaster, "remark": f_remark, "inspector": f_inspector,
-                "supervisor": f_supervisor, "items": {item[0]: {"res": item[2], "desc": item[3]} for item in item_results}
+                "supervisor": f_supervisor, "items": {item[0]: {"res": item[2], "desc": item[3]} for item in item_results},
+                "photos": list(st.session_state.patrol_photos)
             }
-            st.success("✅ 草稿已暫存！即便接電話、關閉頁面或跳到其他分頁，再回來內容都在。")
+            st.success("✅ 草稿已暫存！包含已拍攝相片皆已妥善保存。")
 
     with act_col2:
         export_name = f"邊坡口卡編號{chosen_code}-構造物{chosen_struct}.doc"
@@ -434,8 +463,8 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
             "inspector": f_inspector,
             "supervisor": f_supervisor
         }
-        p_bytes = [p.getvalue() for p in (f_photos or [])] + ([f_camera.getvalue()] if f_camera else [])
-        doc_bytes = generate_doc_report(report_data, p_bytes)
+        # 僅匯出同仁最終審核留存之相片清單
+        doc_bytes = generate_doc_report(report_data, st.session_state.patrol_photos)
         st.download_button(label=f"📥 產出並下載 {export_name}", data=doc_bytes, file_name=export_name, mime="application/msword", type="primary", use_container_width=True)
 
 # 頁尾
