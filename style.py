@@ -42,13 +42,16 @@ def get_theme_css(is_light: bool) -> str:
         '<svg class="geo-splash-svg" viewBox="0 0 340 220" fill="none" xmlns="http://www.w3.org/2000/svg">'
         '<defs>'
         '<linearGradient id="splashGradBase" x1="50" y1="115" x2="290" y2="195" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#52796f" stop-opacity="0.9"/><stop offset="1" stop-color="#2d4a43" stop-opacity="0.95"/>'
+        '<stop stop-color="#52796f" stop-opacity="0.9"/>'
+        '<stop offset="1" stop-color="#2d4a43" stop-opacity="0.95"/>'
         '</linearGradient>'
         '<linearGradient id="splashGradPrism" x1="150" y1="55" x2="170" y2="168" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#4A6B82" stop-opacity="0.88"/><stop offset="1" stop-color="#1e293b" stop-opacity="0.95"/>'
+        '<stop stop-color="#4A6B82" stop-opacity="0.88"/>'
+        '<stop offset="1" stop-color="#1e293b" stop-opacity="0.95"/>'
         '</linearGradient>'
         '<linearGradient id="splashGradSeepage" x1="95" y1="75" x2="235" y2="142" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#38bdf8" stop-opacity="0.8"/><stop offset="1" stop-color="#0284c7" stop-opacity="0.95"/>'
+        '<stop stop-color="#38bdf8" stop-opacity="0.8"/>'
+        '<stop offset="1" stop-color="#0284c7" stop-opacity="0.95"/>'
         '</linearGradient>'
         '</defs>'
         '<g class="geo-mesh-grid" stroke="#64748b" stroke-width="0.9" stroke-opacity="0.45">'
@@ -176,36 +179,39 @@ def get_theme_css(is_light: bool) -> str:
     .block-container {
         max-width: 100% !important;
         width: 100% !important;
-        padding-top: clamp(2.5rem, 4vh, 4rem) !important;
+        padding-top: clamp(2rem, 3.5vh, 3.5rem) !important;
         padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important;
         padding-left: clamp(10px, 2.5vw, 32px) !important;
         padding-right: clamp(10px, 2.5vw, 32px) !important;
         margin: 0 auto !important;
     }
     
+    /* 頂部 LOGO 與標題水平並排 */
     .system-header-box {
         display: flex !important;
-        flex-direction: column !important;
+        flex-direction: row !important;
         align-items: center !important;
         justify-content: center !important;
-        margin-top: 4px !important;
-        margin-bottom: 14px !important;
+        gap: clamp(8px, 1.2vw, 14px) !important;
+        margin-top: 2px !important;
+        margin-bottom: 12px !important;
+        width: 100% !important;
     }
     .app-top-logo {
-        width: clamp(52px, 6vw, 68px) !important;
+        width: clamp(38px, 4.2vw, 52px) !important;
         height: auto !important;
-        margin-bottom: 6px !important;
-        filter: drop-shadow(0 4px 10px rgba(56, 189, 248, 0.25)) !important;
+        margin-bottom: 0px !important;
+        flex-shrink: 0 !important;
+        filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.25)) !important;
     }
     .system-title {
-        font-size: clamp(21px, 3.2vw, 29px) !important;
-        line-height: 1.35 !important;
+        font-size: clamp(20px, 2.8vw, 28px) !important;
+        line-height: 1.3 !important;
         font-weight: 900 !important;
-        letter-spacing: 1.2px !important;
+        letter-spacing: 1.2px;
         color: #4A6B82 !important;
-        text-align: center !important;
-        display: block !important;
-        width: 100% !important;
+        text-align: left !important;
+        display: inline-block !important;
         margin: 0 !important;
     }
 
@@ -213,7 +219,7 @@ def get_theme_css(is_light: bool) -> str:
         font-size: clamp(16px, 2.4vw, 20px) !important;
         line-height: 1.3 !important;
         font-weight: 800 !important;
-        letter-spacing: 0.8px !important;
+        letter-spacing: 0.8px;
         color: #4A6B82 !important;
         text-align: center !important;
         display: block !important;
@@ -406,14 +412,15 @@ def get_theme_css(is_light: bool) -> str:
     button[key="badge_btn_D"] { background-color: #059669 !important; border: 1px solid #047857 !important; color: #ffffff !important; font-weight: 800 !important; }
     button[key="badge_btn_其他"] { background-color: #475569 !important; border: 1px solid #334155 !important; color: #ffffff !important; font-weight: 800 !important; }
 
+    /* 頂部 5 大功能導航按鈕容器 */
     div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {
         display: flex !important;
         flex-direction: row !important;
         flex-wrap: nowrap !important;
         gap: clamp(4px, 1vw, 10px) !important;
         width: 100% !important;
-        margin-top: 18px !important;
-        margin-bottom: 12px !important;
+        margin-top: 4px !important;
+        margin-bottom: 16px !important;
     }
     div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) > div {
         flex: 1 1 20% !important;
@@ -429,15 +436,13 @@ def get_theme_css(is_light: bool) -> str:
         height: clamp(38px, 4.5vh, 44px) !important;
     }
 
-    /* ==========================================================================
-       最底端頁尾：徹底移除外層邊框與背景色塊，自然懸浮於頁面底端
-       ========================================================================== */
+    /* 最底端頁尾：無邊框極簡自然懸浮 */
     .app-official-footer-bottom {
         display: flex !important;
         flex-direction: column !important;
         align-items: center !important;
         justify-content: center !important;
-        margin-top: 18px !important;
+        margin-top: 22px !important;
         margin-bottom: 26px !important;
         padding: 8px 12px !important;
         background: transparent !important;
