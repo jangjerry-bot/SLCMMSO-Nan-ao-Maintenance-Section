@@ -1,556 +1,477 @@
-# style.py
+# app.py
 import os
-import base64
+import streamlit as st
+import pandas as pd
+import folium
+from folium.plugins import LocateControl
+from streamlit_folium import st_folium
+import plotly.express as px
+import datetime
+import zipfile
+import io
+import xml.etree.ElementTree as ET
+import re
 
-def get_theme_css(is_light: bool) -> str:
-    if is_light:
-        theme_vars = """
-            --bg-main: #f8fafc;
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --card-bg: #ffffff;
-            --card-border: #cbd5e1;
-            --input-bg: #ffffff;
-            --input-border: #94a3b8;
-            --input-text: #0f172a;
-            --btn-sec-bg: #f1f5f9;
-            --btn-sec-text: #0f172a;
-            --btn-sec-border: #cbd5e1;
-            --footer-text: #4A6B82;
-            --link-color: #2563eb;
-        """
-    else:
-        theme_vars = """
-            --bg-main: #0b0f19;
-            --text-main: #f8fafc;
-            --text-muted: #64748b;
-            --card-bg: rgba(255, 255, 255, 0.04);
-            --card-border: rgba(255, 255, 255, 0.12);
-            --input-bg: #ffffff;
-            --input-border: #cbd5e1;
-            --input-text: #64748b;
-            --btn-sec-bg: #1e293b;
-            --btn-sec-text: #f1f5f9;
-            --btn-sec-border: #334155;
-            --footer-text: #4A6B82;
-            --link-color: #60a5fa;
-        """
-
-    splash_overlay_html = (
-        '<div id="geo-splash-overlay">'
-        '<div class="geo-splash-center">'
-        '<svg class="geo-splash-svg" viewBox="0 0 340 220" fill="none" xmlns="http://www.w3.org/2000/svg">'
-        '<defs>'
-        '<linearGradient id="splashGradBase" x1="50" y1="115" x2="290" y2="195" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#52796f" stop-opacity="0.9"/>'
-        '<stop offset="1" stop-color="#2d4a43" stop-opacity="0.95"/>'
-        '</linearGradient>'
-        '<linearGradient id="splashGradPrism" x1="150" y1="55" x2="170" y2="168" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#4A6B82" stop-opacity="0.88"/>'
-        '<stop offset="1" stop-color="#1e293b" stop-opacity="0.95"/>'
-        '</linearGradient>'
-        '<linearGradient id="splashGradSeepage" x1="95" y1="75" x2="235" y2="142" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#38bdf8" stop-opacity="0.8"/>'
-        '<stop offset="1" stop-color="#0284c7" stop-opacity="0.95"/>'
-        '</linearGradient>'
-        '</defs>'
-        '<g class="geo-mesh-grid" stroke="#64748b" stroke-width="0.9" stroke-opacity="0.45">'
-        '<path d="M30 150 L170 212 L310 150 L170 88 Z" fill="rgba(241, 245, 249, 0.25)"/>'
-        '<path d="M65 134 L205 197"/><path d="M100 119 L240 181"/><path d="M135 103 L275 166"/>'
-        '<path d="M100 181 L240 119"/><path d="M65 166 L205 103"/><path d="M135 197 L275 134"/>'
-        '</g>'
-        '<path class="geo-red-axis" d="M15 156 L325 156" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="4 3" stroke-opacity="0.75"/>'
-        '<path class="geo-base-layer" d="M50 142 L170 195 L290 142 L290 115 L170 168 L50 115 Z" fill="url(#splashGradBase)" stroke="#52796f" stroke-width="1.6"/>'
-        '<path class="geo-slope-prism" d="M50 115 L170 168 L290 115 L245 55 L150 55 L50 115 Z" fill="url(#splashGradPrism)" stroke="#3E5C76" stroke-width="1.8"/>'
-        '<path class="geo-seepage-mass" d="M95 105 Q155 142 225 105 L235 75 Q165 102 135 75 Z" fill="url(#splashGradSeepage)" stroke="#0284c7" stroke-width="2"/>'
-        '<path class="geo-red-crest" d="M150 55 L245 55 L290 115" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/>'
-        '<path class="geo-red-shear" d="M90 102 Q160 138 232 102" stroke="#dc2626" stroke-width="3.2" stroke-linecap="round"/>'
-        '<path class="geo-slip-stream" d="M85 112 Q158 152 235 108" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>'
-        '<path class="geo-slip-stream-sub" d="M110 90 Q160 122 210 90" stroke="#0ea5e9" stroke-width="1.8" stroke-linecap="round"/>'
-        '</svg>'
-        '<div class="geo-splash-title">南澳邊坡全生命週期資料庫</div>'
-        '<div class="geo-splash-sub">3D SLOPE LIFECYCLE MANAGEMENT SYSTEM</div>'
-        '</div>'
-        '</div>'
-    )
-
-    css_template = """
-<style>
-    :root {
-        __THEME_VARS__
-    }
-
-    #geo-splash-overlay {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        background: #0b0f19 !important;
-        z-index: 99999999 !important;
-        display: flex !important;
-        justify-content: center !important;
-        align-items: center !important;
-        pointer-events: none !important;
-        animation: splashDismiss 0.6s cubic-bezier(0.4, 0, 0.2, 1) 2.4s forwards !important;
-    }
-    @keyframes splashDismiss {
-        0% { opacity: 1; visibility: visible; }
-        99% { opacity: 0; visibility: visible; }
-        100% { opacity: 0; visibility: hidden; display: none !important; }
-    }
-
-    .geo-splash-center {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        text-align: center !important;
-        padding: 20px !important;
-    }
-    .geo-splash-svg {
-        width: clamp(260px, 46vw, 380px) !important;
-        height: auto !important;
-        filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.55)) !important;
-    }
-    .geo-splash-title {
-        color: #f8fafc !important;
-        font-size: clamp(20px, 2.8vw, 26px) !important;
-        font-weight: 900 !important;
-        letter-spacing: 2px !important;
-        margin-top: 18px !important;
-        animation: titleFadeIn 0.8s ease-out !important;
-    }
-    .geo-splash-sub {
-        color: #38bdf8 !important;
-        font-size: clamp(10.5px, 1.4vw, 12.5px) !important;
-        font-weight: 700 !important;
-        letter-spacing: 2.4px !important;
-        margin-top: 6px !important;
-        animation: titleFadeIn 1.0s ease-out !important;
-    }
-
-    .geo-mesh-grid { animation: meshPop 0.8s ease-out; }
-    .geo-red-axis { animation: meshPop 0.6s ease-out; }
-    .geo-base-layer, .geo-slope-prism, .geo-seepage-mass { animation: modelRise 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
-
-    .geo-red-crest {
-        stroke-dasharray: 200;
-        stroke-dashoffset: 200;
-        animation: drawLine 1.1s 0.1s ease-in-out forwards;
-        filter: drop-shadow(0 0 6px #ef4444);
-    }
-    .geo-red-shear {
-        stroke-dasharray: 220;
-        stroke-dashoffset: 220;
-        animation: drawLine 1.1s 0.2s ease-in-out forwards;
-        filter: drop-shadow(0 0 8px #dc2626);
-    }
-    .geo-slip-stream {
-        stroke-dasharray: 260;
-        stroke-dashoffset: 260;
-        animation: drawLine 1.2s 0.3s ease-in-out forwards;
-        filter: drop-shadow(0 0 7px #38bdf8);
-    }
-    .geo-slip-stream-sub {
-        stroke-dasharray: 180;
-        stroke-dashoffset: 180;
-        animation: drawLine 1.0s 0.4s ease-in-out forwards;
-        filter: drop-shadow(0 0 5px #0ea5e9);
-    }
-
-    @keyframes drawLine { to { stroke-dashoffset: 0; } }
-    @keyframes modelRise { from { transform: translateY(12px); opacity: 0.2; } to { transform: translateY(0); opacity: 1; } }
-    @keyframes meshPop { from { transform: scale(0.92); opacity: 0.1; } to { transform: scale(1); opacity: 1; } }
-    @keyframes titleFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-    html, body, [class*="css"] {
-        color: var(--text-main) !important;
-    }
-
-    .stApp {
-        background-color: var(--bg-main) !important;
-        color: var(--text-main) !important;
-    }
-
-    [class*="immersive-translate"], .immersive-translate-target-wrapper { display: none !important; height: 0 !important; }
-    #MainMenu, footer { visibility: hidden; }
-    
-    .block-container {
-        max-width: 100% !important;
-        width: 100% !important;
-        padding-top: clamp(2rem, 3.5vh, 3.5rem) !important;
-        padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important;
-        padding-left: clamp(10px, 2.5vw, 32px) !important;
-        padding-right: clamp(10px, 2.5vw, 32px) !important;
-        margin: 0 auto !important;
-    }
-    
-    /* 頂部 LOGO 與標題水平並排 */
-    .system-header-box {
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: clamp(8px, 1.2vw, 14px) !important;
-        margin-top: 2px !important;
-        margin-bottom: 12px !important;
-        width: 100% !important;
-    }
-    .app-top-logo {
-        width: clamp(38px, 4.2vw, 52px) !important;
-        height: auto !important;
-        margin-bottom: 0px !important;
-        flex-shrink: 0 !important;
-        filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.25)) !important;
-    }
-    .system-title {
-        font-size: clamp(20px, 2.8vw, 28px) !important;
-        line-height: 1.3 !important;
-        font-weight: 900 !important;
-        letter-spacing: 1.2px;
-        color: #4A6B82 !important;
-        text-align: left !important;
-        display: inline-block !important;
-        margin: 0 !important;
-    }
-
-    .map-sub-title {
-        font-size: clamp(16px, 2.4vw, 20px) !important;
-        line-height: 1.3 !important;
-        font-weight: 800 !important;
-        letter-spacing: 0.8px;
-        color: #4A6B82 !important;
-        text-align: center !important;
-        display: block !important;
-        width: 100%;
-        margin-top: 0px !important;
-        margin-bottom: 6px !important;
-    }
-
-    html body .stApp div[data-testid^="st"] label,
-    html body .stApp div[data-testid^="st"] label p,
-    html body .stApp div[data-testid^="st"] label span {
-        color: var(--text-main) !important;
-        font-weight: 700 !important;
-        font-size: 14px !important;
-    }
-
-    html body .stApp div[data-testid="stSelectbox"] div[data-baseweb="select"],
-    html body .stApp div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
-    html body .stApp div[data-testid="stSelectbox"] div[role="combobox"],
-    html body .stApp div[data-baseweb="select"],
-    html body .stApp div[data-baseweb="select"] > div {
-        background-color: var(--input-bg) !important;
-        background: var(--input-bg) !important;
-        border: 1px solid var(--input-border) !important;
-        border-radius: 8px !important;
-    }
-
-    html body .stApp div[data-testid="stSelectbox"] div[data-baseweb="select"] *,
-    html body .stApp div[data-baseweb="select"] * {
-        color: var(--text-muted) !important;
-        -webkit-text-fill-color: var(--text-muted) !important;
-        font-size: 14.5px !important;
-        font-weight: 500 !important;
-        fill: var(--text-muted) !important;
-    }
-
-    html body .stApp div[data-testid="stTextInput"] div[data-baseweb="base-input"],
-    html body .stApp div[data-testid="stTextInput"] div[data-baseweb="input"],
-    html body .stApp div[data-baseweb="base-input"],
-    html body .stApp div[data-baseweb="input"] {
-        background-color: var(--input-bg) !important;
-        background: var(--input-bg) !important;
-        border: 1px solid var(--input-border) !important;
-        border-radius: 8px !important;
-    }
-    html body .stApp div[data-testid="stTextInput"] input,
-    html body .stApp div[data-baseweb="input"] input,
-    html body .stApp input[type="text"] {
-        background-color: transparent !important;
-        background: transparent !important;
-        color: #0f172a !important;
-        -webkit-text-fill-color: #0f172a !important;
-        font-size: 14.5px !important;
-        font-weight: 600 !important;
-    }
-    html body .stApp input::placeholder,
-    html body .stApp textarea::placeholder {
-        color: var(--text-muted) !important;
-        -webkit-text-fill-color: var(--text-muted) !important;
-        font-weight: 500 !important;
-    }
-
-    div[data-baseweb="popover"],
-    ul[data-baseweb="menu"],
-    div[data-baseweb="menu"] {
-        background-color: #ffffff !important;
-        border: 1px solid #cbd5e1 !important;
-    }
-    li[data-baseweb="menu-item"] {
-        background-color: #ffffff !important;
-        color: #0f172a !important;
-    }
-    li[data-baseweb="menu-item"]:hover {
-        background-color: #f1f5f9 !important;
-    }
-
-    html body .stApp input:disabled,
-    html body .stApp div[data-baseweb="input"] input:disabled {
-        background-color: var(--input-bg) !important;
-        color: var(--text-muted) !important;
-        -webkit-text-fill-color: var(--text-muted) !important;
-        opacity: 0.95 !important;
-        cursor: not-allowed;
-    }
-
-    html body .stApp div[data-testid="stDateInput"] div[data-baseweb="input"] {
-        background-color: var(--input-bg) !important;
-        border: 1px solid var(--input-border) !important;
-        border-radius: 8px !important;
-    }
-    html body .stApp div[data-testid="stDateInput"] input {
-        background-color: transparent !important;
-        color: var(--text-muted) !important;
-        -webkit-text-fill-color: var(--text-muted) !important;
-        font-size: 14.5px !important;
-        font-weight: 500 !important;
-    }
-
-    html body .stApp div[data-testid="stTextArea"] div[data-baseweb="textarea"],
-    html body .stApp div[data-baseweb="textarea"] textarea {
-        background-color: var(--input-bg) !important;
-        color: #0f172a !important;
-        -webkit-text-fill-color: #0f172a !important;
-        border: 1px solid var(--input-border) !important;
-        border-radius: 8px !important;
-        font-size: 14px !important;
-    }
-
-    html body .stApp div[data-testid="stRadio"] label,
-    html body .stApp div[data-testid="stRadio"] p {
-        color: var(--text-main) !important;
-        font-weight: 700 !important;
-        font-size: clamp(13px, 1.8vw, 15px) !important;
-    }
-
-    div[data-testid="stExpander"] {
-        background-color: var(--card-bg) !important;
-        border: 1px solid var(--card-border) !important;
-        border-radius: 10px !important;
-        margin-bottom: 8px !important;
-    }
-    div[data-testid="stExpander"] summary {
-        background-color: var(--card-bg) !important;
-        color: var(--text-main) !important;
-    }
-    div[data-testid="stExpander"] summary:hover {
-        background-color: var(--btn-sec-bg) !important;
-    }
-    div[data-testid="stExpander"] summary * {
-        color: var(--text-main) !important;
-        font-weight: 700 !important;
-    }
-
-    .app-card {
-        background: var(--card-bg) !important;
-        border-radius: 12px;
-        padding: clamp(12px, 2vw, 18px);
-        margin-bottom: 12px;
-        border: 1px solid var(--card-border) !important;
-    }
-    .detail-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 7px 0;
-        border-bottom: 1px solid var(--card-border) !important;
-        font-size: clamp(13px, 1.7vw, 14.5px);
-        line-height: 1.45;
-        color: var(--text-main) !important;
-    }
-    .detail-label { color: var(--text-muted) !important; font-weight: 600; width: 40%; }
-    .detail-value { font-weight: 600; width: 60%; text-align: right; word-break: break-all; color: var(--text-main) !important; }
-
-    .badge {
-        display: inline-block;
-        padding: 3px 9px;
-        border-radius: 6px;
-        font-size: clamp(11px, 1.4vw, 12.5px);
-        font-weight: 700;
-        color: #ffffff !important;
-    }
-    .badge-A { background-color: #c05646; }
-    .badge-B { background-color: #d9822b; }
-    .badge-C { background-color: #4A6B82; }
-    .badge-D { background-color: #52796f; }
-    .badge-其他 { background-color: #64748b; }
-
-    .embed-map-box {
-        border-radius: 12px;
-        overflow: hidden;
-        border: 1px solid var(--card-border) !important;
-        margin: 12px 0;
-    }
-
-    button[kind="secondary"] {
-        background-color: var(--btn-sec-bg) !important;
-        color: var(--btn-sec-text) !important;
-        border: 1px solid var(--btn-sec-border) !important;
-        font-weight: 700 !important;
-    }
-    button[kind="primary"] {
-        background-color: #4A6B82 !important;
-        border-color: #3E5C76 !important;
-        color: #ffffff !important;
-        font-weight: 700 !important;
-    }
-
-    button[key="badge_btn_A"] { background-color: #c05646 !important; border: 1px solid #991b1b !important; color: #ffffff !important; font-weight: 800 !important; }
-    button[key="badge_btn_B"] { background-color: #d9822b !important; border: 1px solid #c2410c !important; color: #ffffff !important; font-weight: 800 !important; }
-    button[key="badge_btn_C"] { background-color: #2563eb !important; border: 1px solid #1d4ed8 !important; color: #ffffff !important; font-weight: 800 !important; }
-    button[key="badge_btn_D"] { background-color: #059669 !important; border: 1px solid #047857 !important; color: #ffffff !important; font-weight: 800 !important; }
-    button[key="badge_btn_其他"] { background-color: #475569 !important; border: 1px solid #334155 !important; color: #ffffff !important; font-weight: 800 !important; }
-
-    /* 頂部 5 大功能導航按鈕容器 */
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        gap: clamp(4px, 1vw, 10px) !important;
-        width: 100% !important;
-        margin-top: 4px !important;
-        margin-bottom: 16px !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) > div {
-        flex: 1 1 20% !important;
-        min-width: 0 !important;
-    }
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) button {
-        padding-left: clamp(2px, 0.5vw, 6px) !important;
-        padding-right: clamp(2px, 0.5vw, 6px) !important;
-        font-size: clamp(12px, 1.35vw, 15px) !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        height: clamp(38px, 4.5vh, 44px) !important;
-    }
-
-    /* 最底端頁尾：無邊框極簡自然懸浮 */
-    .app-official-footer-bottom {
-        display: flex !important;
-        flex-direction: column !important;
-        align-items: center !important;
-        justify-content: center !important;
-        margin-top: 22px !important;
-        margin-bottom: 26px !important;
-        padding: 8px 12px !important;
-        background: transparent !important;
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-    }
-    .footer-title-row {
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        justify-content: center !important;
-        gap: 10px !important;
-        width: 100% !important;
-        text-align: center !important;
-    }
-    .app-official-logo { 
-        height: clamp(28px, 4.0vw, 36px) !important; 
-        width: auto !important; 
-        display: inline-block !important; 
-        vertical-align: middle !important; 
-    }
-    .app-official-text {
-        font-size: clamp(13.5px, 1.8vw, 16.5px) !important;
-        font-weight: 800 !important;
-        color: var(--footer-text) !important;
-        letter-spacing: 0.5px !important;
-        line-height: 1.4 !important;
-        text-align: center !important;
-    }
-    .app-official-source {
-        font-size: clamp(11px, 1.3vw, 12.5px) !important;
-        font-weight: 500 !important;
-        color: var(--text-muted) !important;
-        margin-top: 6px !important;
-        letter-spacing: 0.3px !important;
-        text-align: center !important;
-        line-height: 1.4 !important;
-        width: 100% !important;
-        word-break: break-word !important;
-    }
-    .app-official-source a {
-        color: var(--link-color) !important;
-        text-decoration: underline !important;
-        font-weight: 600 !important;
-        margin-left: 3px !important;
-    }
-
-    @media (max-width: 480px) {
-        .footer-title-row {
-            flex-direction: column !important;
-            gap: 6px !important;
-        }
-        .app-official-logo {
-            height: 28px !important;
-        }
-        .app-official-text {
-            font-size: 13.5px !important;
-        }
-    }
-</style>
+os.makedirs(".streamlit", exist_ok=True)
+config_path = os.path.join(".streamlit", "config.toml")
+config_content = """[theme]
+base = "light"
+primaryColor = "#4A6B82"
+backgroundColor = "#f8fafc"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#0f172a"
 """
-    style_part = css_template.replace("__THEME_VARS__", theme_vars)
-    return splash_overlay_html + style_part
+if not os.path.exists(config_path) or open(config_path, "r", encoding="utf-8").read() != config_content:
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(config_content)
 
-def render_top_logo() -> str:
-    return """
-    <div class="system-header-box notranslate" translate="no">
-      <svg class="app-top-logo" viewBox="0 0 120 90" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M10 65 L60 88 L110 65 L110 52 L60 75 L10 52 Z" fill="#52796f" opacity="0.9"/>
-        <path d="M10 52 L60 75 L110 52 L95 24 L55 24 L10 52 Z" fill="#4A6B82" opacity="0.95"/>
-        <path d="M30 48 Q55 64 85 48 L90 35 Q60 48 48 35 Z" fill="#38bdf8" opacity="0.85"/>
-        <path d="M55 24 L95 24 L110 52" stroke="#ef4444" stroke-width="1.8" stroke-linecap="round"/>
-        <path d="M26 51 Q58 68 92 49" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round"/>
-      </svg>
-      <div class="system-title">南澳邊坡全生命週期資料庫</div>
-    </div>
-    """
+from style import get_theme_css, render_footer, render_top_logo
+from inspection_schema import INSPECTION_TEMPLATES, match_template, generate_doc_report
 
-def render_footer() -> str:
-    logo_svg = '<svg class="app-official-logo notranslate" viewBox="0 0 818 138" fill="none" xmlns="http://www.w3.org/2000/svg" translate="no"><path d="M409 69C409 30.89 439.89 0 478 0C516.11 0 547 30.89 547 69C547 107.11 516.11 138 478 138C439.89 138 409 107.11 409 69Z" fill="#E62117"/><path d="M478 14C447.62 14 423 38.62 423 69C423 99.38 447.62 124 478 124C508.38 124 533 99.38 533 69C533 38.62 508.38 14 478 14ZM478 110C455.36 110 437 91.64 437 69C437 46.36 455.36 28 478 28C500.64 28 519 46.36 519 69C519 91.64 500.64 110 478 110Z" fill="white"/><path d="M0 24L380 24C395 24 402 36 388 48L70 48C50 48 30 40 0 24Z" fill="#1E50A2"/><path d="M818 24L438 24C423 24 416 36 430 48L748 48C768 48 788 40 818 24Z" fill="#1E50A2"/><path d="M60 56L370 56C382 56 388 66 376 76L120 76C100 76 80 70 60 56Z" fill="#0080FF"/><path d="M758 56L448 56C436 56 430 66 442 76L698 76C718 76 738 70 758 56Z" fill="#0080FF"/><path d="M120 86L360 86C370 86 375 94 365 102L170 102C150 102 135 96 120 86Z" fill="#00BFFF"/><path d="M698 86L458 86C448 86 443 94 453 102L648 102C668 102 683 96 698 86Z" fill="#00BFFF"/></svg>'
+# 1. 頁面設定
+st.set_page_config(page_title="南澳邊坡全生命週期資料庫", page_icon="⛰️", layout="wide", initial_sidebar_state="collapsed")
+
+# 2. 狀態管理
+if "theme_mode" not in st.session_state: st.session_state.theme_mode = "☀️ 淺色白底"
+if "bottom_tab" not in st.session_state: st.session_state.bottom_tab = "📋 邊坡清冊"
+if "selected_slope_id" not in st.session_state: st.session_state.selected_slope_id = None
+if "active_grade_detail" not in st.session_state: st.session_state.active_grade_detail = None
+if "patrol_draft" not in st.session_state: st.session_state.patrol_draft = {}
+
+is_light = (st.session_state.theme_mode == "☀️ 淺色白底")
+plotly_font_color = "#0f172a" if is_light else "#f8fafc"
+
+st.markdown(get_theme_css(is_light), unsafe_allow_html=True)
+
+# 頂部色彩切換與 LOGO
+_, col_top_theme = st.columns([0.65, 0.35])
+with col_top_theme:
+    selected_theme = st.radio("色彩模式", ["🌙 深色黑底", "☀️ 淺色白底"], index=1 if is_light else 0, horizontal=True, label_visibility="collapsed")
+    if selected_theme != st.session_state.theme_mode:
+        st.session_state.theme_mode = selected_theme
+        st.rerun()
+
+st.markdown(render_top_logo(), unsafe_allow_html=True)
+
+# ==============================================================================
+# 5 大功能導航鍵
+# ==============================================================================
+tabs = ["📋 邊坡清冊", "📊 定量定性", "🗺️ 地圖定位", "🔥 災害斑點", "📝 養護巡查"]
+nav_cols = st.columns(5)
+for i, tab_name in enumerate(tabs):
+    with nav_cols[i]:
+        is_cur = (st.session_state.bottom_tab == tab_name or (tab_name == "🔥 災害斑點" and st.session_state.bottom_tab == "🔥 災害斑點圖"))
+        if st.button(tab_name, key=f"nav_btn_{i+1}", use_container_width=True, type="primary" if is_cur else "secondary"):
+            st.session_state.bottom_tab = "🔥 災害斑點圖" if tab_name == "🔥 災害斑點" else tab_name
+            if tab_name != "📋 邊坡清冊":
+                st.session_state.selected_slope_id = None
+            st.rerun()
+
+DATA_FILE = "邊坡資料.xlsx" if os.path.exists("邊坡資料.xlsx") else "1.邊坡資料(11505).xlsx"
+KMZ_FILE = "南澳段歷次災害-(更新斑點圖使用).kmz"
+
+def normalize_quant(val):
+    if pd.isna(val): return "未施作"
+    s = str(val).strip()
+    if s in ["", "nan", "None", "未施作", "未施作定量評估", "無"]: return "未施作"
+    for num, zh in [("1", "一"), ("2", "二"), ("3", "三"), ("4", "四"), ("5", "五")]:
+        if num in s or zh in s: return f"第{num}級"
+    return "未施作"
+
+@st.cache_data
+def load_data():
+    if not os.path.exists(DATA_FILE): return pd.DataFrame()
+    df = pd.read_excel(DATA_FILE)
+    df['起點緯度'] = pd.to_numeric(df['起點緯度'], errors='coerce')
+    df['起點經度'] = pd.to_numeric(df['起點經度'], errors='coerce')
+    df['定性分級'] = df['定性分級'].fillna('其他').astype(str).str.strip()
+    df['定量分級'] = df['定量分級'].apply(normalize_quant) if '定量分級' in df.columns else "未施作"
+    return df
+
+@st.cache_data
+def load_kmz():
+    disasters = []
+    if not os.path.exists(KMZ_FILE): return pd.DataFrame(disasters)
+    try:
+        with zipfile.ZipFile(KMZ_FILE, 'r') as z:
+            kmls = [f for f in z.namelist() if f.endswith('.kml')]
+            if not kmls: return pd.DataFrame(disasters)
+            root = ET.fromstring(z.read(kmls[0]))
+        ns = {'kml': 'http://www.opengis.net/kml/2.2'}
+        for pm in root.findall('.//kml:Placemark', ns):
+            name_node = pm.find('kml:name', ns)
+            name = name_node.text.strip() if name_node is not None and name_node.text else "歷次災點"
+            desc_node = pm.find('kml:description', ns)
+            desc = desc_node.text.strip() if desc_node is not None and desc_node.text else ""
+            coord_node = pm.find('.//kml:coordinates', ns)
+            ym = re.search(r'(\d{2,3})年', f"{name} {desc}")
+            dis_year = f"{ym.group(1)}年" if ym else "其他/歷史"
+            if coord_node is not None and coord_node.text:
+                parts = coord_node.text.strip().split()[0].split(',')
+                if len(parts) >= 2:
+                    disasters.append({"災害名稱": name, "年度": dis_year, "詳細說明": desc, "緯度": float(parts[1]), "經度": float(parts[0])})
+    except Exception:
+        pass
+    return pd.DataFrame(disasters)
+
+df = load_data()
+df_disasters = load_kmz()
+
+if df.empty:
+    st.error(f"找不到邊坡資料檔案：{DATA_FILE}")
+    st.stop()
+
+def create_photos_zip(photos, prefix_name):
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for i, photo_bytes in enumerate(photos):
+            zip_file.writestr(f"{prefix_name}-{i+1}.jpg", photo_bytes)
+    return zip_buffer.getvalue()
+
+# ==============================================================================
+# 頁面 1：邊坡清冊
+# ==============================================================================
+if st.session_state.bottom_tab == "📋 邊坡清冊":
+    if st.session_state.selected_slope_id is not None:
+        if st.button("⬅️ 返回邊坡清冊主畫面", key="detail_back_btn", use_container_width=True, type="primary"):
+            st.session_state.selected_slope_id = None
+            st.rerun()
+
+        matched = df[df['口卡編號'] == st.session_state.selected_slope_id]
+        if not matched.empty:
+            row = matched.iloc[0]
+            q_grade = str(row['定性分級'])
+            card_top = f"""<div class='app-card notranslate' translate='no'>
+<div style='display:flex; justify-content:space-between; align-items:center;'>
+<span class='detail-green-text'>📍 {row['路線']} {row['里程樁號(起)']}</span>
+<span class='badge badge-{q_grade}'>{q_grade} 級</span>
+</div>
+<div style='font-family:monospace; font-size:13.5px; color:var(--text-muted); margin-top:3px;'>口卡：{row['口卡編號']}</div>
+<div style='font-size:15px; font-weight:800; color:#4A6B82; margin-top:4px;'>構造物：{row.get('邊坡構造物', '自然邊坡')}</div>
+</div>"""
+            st.markdown(card_top, unsafe_allow_html=True)
+
+            r_lat, r_lon = row.get('起點緯度'), row.get('起點經度')
+            if pd.notna(r_lat) and pd.notna(r_lon):
+                st.markdown("##### 🛰️ 現地空間衛星影像位置")
+                embed_map = f"""<div class='embed-map-box notranslate' translate='no'>
+<iframe width='100%' height='280' frameborder='0' scrolling='no' src='https://maps.google.com/maps?q={r_lat},{r_lon}&t=k&z=17&ie=UTF8&iwloc=&output=embed'></iframe>
+</div>"""
+                st.markdown(embed_map, unsafe_allow_html=True)
+                gmap_url = f"https://www.google.com/maps/dir/?api=1&destination={r_lat},{r_lon}"
+                st.markdown(f"<div style='margin: 8px 0 16px 0;'><a href='{gmap_url}' target='_blank' style='display:block; text-align:center; padding:9px 12px; background:#4A6B82; color:white; font-weight:bold; border-radius:8px; text-decoration:none;'>🧭 開啟 Google Maps 導航至此處</a></div>", unsafe_allow_html=True)
+
+            st.markdown("##### 📋 邊坡完整屬性資料（唯讀瀏覽）")
+            detail_fields = [
+                ("邊坡狀態", str(row.get('邊坡狀態', '無'))),
+                ("工務段", str(row.get('工務段', '南澳工務段'))),
+                ("路線 / 里程", f"{row.get('路線', '')} {row.get('里程樁號(起)', '')}"),
+                ("起點經緯度", f"{r_lon:.5f}, {r_lat:.5f}" if pd.notna(r_lat) else "無"),
+                ("邊坡構造物", str(row.get('邊坡構造物', '自然邊坡'))),
+                ("坡高 / 坡度 / 面寬", f"{row.get('坡高', '')}m / {row.get('坡度', '')}° / {row.get('邊坡面寬', '')}m"),
+                ("定性 / 定量分級", f"{q_grade}級 / {row.get('定量分級', '未施作')}"),
+                ("災害歷史", str(row.get('災害歷史', '無'))),
+                ("附近地名", str(row.get('附近地名', '無'))),
+            ]
+            rows_html = "".join([f"<div class='detail-row'><span class='detail-label'>{k}</span><span class='detail-value'>{v}</span></div>" for k, v in detail_fields])
+            st.markdown(f"<div class='app-card notranslate' translate='no'>{rows_html}</div>", unsafe_allow_html=True)
+
+            st.markdown("**現地狀況描述：**")
+            st.markdown(f"<div class='app-card notranslate' translate='no' style='background:rgba(74, 107, 130, 0.12); border-left:4px solid #4A6B82; line-height:1.5; font-size:15px;'>{row.get('現地狀況描述', '無描述紀錄')}</div>", unsafe_allow_html=True)
+
+            if st.button("📝 前往填寫此邊坡之「養護巡查檢測表」", type="primary", use_container_width=True):
+                st.session_state.bottom_tab = "📝 養護巡查"
+                st.session_state.target_slope_for_patrol = row['口卡編號']
+                st.rerun()
+    else:
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            route_list = ["全部路線"] + list(df['路線'].dropna().unique())
+            route_filter = st.selectbox("路線篩選", route_list)
+        with col_f2:
+            qual_filter = st.selectbox("分級篩選", ["全部分級", "A", "B", "C", "D", "其他"])
+
+        search_kw = st.text_input("🔍 搜尋里程、卡號、地名或構造物設施", placeholder="例如: 8k+600、隘丁、噴凝土、岩錨、其他")
+        search_kw_clean = search_kw.strip() if search_kw else ""
+
+        f_df = df.copy()
+        if route_filter != "全部路線": f_df = f_df[f_df['路線'] == route_filter]
+        if qual_filter != "全部分級": f_df = f_df[f_df['定性分級'] == qual_filter]
+            
+        if search_kw_clean:
+            match_cond = (
+                f_df['口卡編號'].astype(str).str.contains(search_kw_clean, case=False, na=False) |
+                f_df['里程樁號(起)'].astype(str).str.contains(search_kw_clean, case=False, na=False) |
+                f_df['附近地名'].astype(str).str.contains(search_kw_clean, case=False, na=False)
+            )
+            if '邊坡構造物' in f_df.columns:
+                match_cond = match_cond | f_df['邊坡構造物'].astype(str).str.contains(search_kw_clean, case=False, na=False)
+            # 若輸入「其他」，也要能找出沒有構造物文字但其實歸類在其他的邊坡
+            if search_kw_clean == "其他":
+                match_cond = match_cond | f_df['定性分級'].astype(str).str.contains("其他", case=False, na=False)
+                
+            f_df = f_df[match_cond]
+
+        q_counts = f_df['定性分級'].value_counts()
+        st.caption(f"符合條件邊坡：**{len(f_df)}** 處（總資產：{len(df)} 處） 點擊下方各級按鈕查看對應樁號：")
+
+        b_cols = st.columns(5)
+        for idx, g in enumerate(["A", "B", "C", "D", "其他"]):
+            with b_cols[idx]:
+                if st.button(f"{g}級 ({q_counts.get(g, 0)})", key=f"badge_btn_{g}", use_container_width=True):
+                    st.session_state.active_grade_detail = g if st.session_state.active_grade_detail != g else None
+                    st.rerun()
+
+        if st.session_state.active_grade_detail:
+            sel_g = st.session_state.active_grade_detail
+            g_sub_df = f_df[f_df['定性分級'] == sel_g]
+            with st.container(border=True):
+                st.markdown(f"**📌【{sel_g} 級】邊坡樁號清冊（共 {len(g_sub_df)} 處）：**")
+                g_cols = st.columns(2)
+                for idx, (_, g_row) in enumerate(g_sub_df.iterrows()):
+                    with g_cols[idx % 2]:
+                        struct_info = f" ({str(g_row.get('邊坡構造物', ''))[:10]})" if pd.notna(g_row.get('邊坡構造物')) else ""
+                        btn_txt = f"📍 {g_row['路線']} {g_row['里程樁號(起)']}{struct_info}"
+                        if st.button(btn_txt, key=f"quick_pick_{g_row['口卡編號']}", use_container_width=True):
+                            st.session_state.selected_slope_id = g_row['口卡編號']
+                            st.rerun()
+
+        st.markdown("<hr style='margin: 12px 0 16px 0; border: none; border-top: 1px solid var(--card-border);' />", unsafe_allow_html=True)
+
+        for r_name in f_df['路線'].dropna().unique():
+            sub_df = f_df[f_df['路線'] == r_name]
+            total_sub = len(sub_df)
+            with st.expander(f"🛣️ **{r_name}**（共 {total_sub} 處）", expanded=False):
+                show_all = False
+                if total_sub > 10:
+                    show_all = st.checkbox(f"展開全部 {total_sub} 筆（預設前 10 筆）", key=f"chk_{r_name}")
+                display_df = sub_df if show_all else sub_df.head(10)
+                for _, r in display_df.iterrows():
+                    grade = str(r['定性分級'])
+                    with st.container(border=True):
+                        st.markdown(f"<span class='route-green-text'>📍 {r['路線']} {r['里程樁號(起)']}</span>", unsafe_allow_html=True)
+                        if st.button(f"進入口卡檢視 [{grade}級]", key=f"pick_{r['口卡編號']}", use_container_width=True):
+                            st.session_state.selected_slope_id = r['口卡編號']
+                            st.rerun()
+                        st.caption(f"卡號：`{r['口卡編號']}` ｜ 構造物：`{r.get('邊坡構造物', '自然邊坡')}`")
+
+# ==============================================================================
+# 頁面 2：定量定性分級統計
+# ==============================================================================
+elif st.session_state.bottom_tab == "📊 定量定性":
+    st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡定量定性分級統計</div>", unsafe_allow_html=True)
+    chart_type = st.radio("📈 圖表呈現模式", ["圓餅圖 (Pie Chart)", "長條圖 (Bar Chart)"], horizontal=True)
+
+    st.markdown("### 1. 定性分級統計")
+    # 將"其他"改為"其他(已廢線路段)"
+    qual_df_raw = df.copy()
+    qual_df_raw['定性分級'] = qual_df_raw['定性分級'].replace({"其他": "其他(已廢線路段)"})
+    qual_order = ["A", "B", "C", "D", "其他(已廢線路段)"]
+    c_counts = qual_df_raw['定性分級'].value_counts()
+    qual_df = pd.DataFrame({"分級": qual_order, "數量": [c_counts.get(c, 0) for c in qual_order]})
+    qual_color = {"A": "#c05646", "B": "#d9822b", "C": "#4A6B82", "D": "#52796f", "其他(已廢線路段)": "#64748b"}
+
+    if "圓餅圖" in chart_type:
+        fig_qual = px.pie(qual_df, values='數量', names='分級', hole=0.45, color='分級', color_discrete_map=qual_color, category_orders={"分級": qual_order})
+        fig_qual.update_traces(textposition='inside', textinfo='percent+label+value', insidetextfont=dict(color="#ffffff", size=18), sort=False)
+        fig_qual.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=18), legend=dict(font=dict(size=18)))
+        st.plotly_chart(fig_qual, use_container_width=True)
+    else:
+        fig_qual = px.bar(qual_df, x="分級", y="數量", text="數量", color="分級", color_discrete_map=qual_color, category_orders={"分級": qual_order})
+        fig_qual.update_traces(textposition='outside', textfont=dict(size=18))
+        fig_qual.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=350, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=18), legend=dict(font=dict(size=18)))
+        st.plotly_chart(fig_qual, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("### 2. RHRS定量分級統計")
+    # RHRS 僅呈現 1~5 級，刪除"未施作"
+    quant_order = ["第1級", "第2級", "第3級", "第4級", "第5級"]
+    quant_color = {"第1級": "#1e40af", "第2級": "#3b82f6", "第3級": "#f97316", "第4級": "#ef4444", "第5級": "#b91c1c"}
+    q_counts = df['定量分級'].value_counts()
+    quant_df = pd.DataFrame({"RHRS定量分級": quant_order, "數量": [q_counts.get(c, 0) for c in quant_order]})
+
+    if "圓餅圖" in chart_type:
+        fig_quant = px.pie(quant_df, values='數量', names='RHRS定量分級', hole=0.45, color='RHRS定量分級', color_discrete_map=quant_color, category_orders={"RHRS定量分級": quant_order})
+        fig_quant.update_traces(textposition='inside', textinfo='percent+label+value', insidetextfont=dict(color="#ffffff", size=18), sort=False)
+        fig_quant.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=18), legend=dict(font=dict(size=18)))
+        st.plotly_chart(fig_quant, use_container_width=True)
+    else:
+        fig_quant = px.bar(quant_df, x="RHRS定量分級", y="數量", text="數量", color="RHRS定量分級", color_discrete_map=quant_color, category_orders={"RHRS定量分級": quant_order})
+        fig_quant.update_traces(textposition='outside', textfont=dict(size=18))
+        fig_quant.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=350, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=18), legend=dict(font=dict(size=18)))
+        st.plotly_chart(fig_quant, use_container_width=True)
+
+# ==============================================================================
+# 頁面 3：地圖定位
+# ==============================================================================
+elif st.session_state.bottom_tab == "🗺️ 地圖定位":
+    st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡空間地圖定位</div>", unsafe_allow_html=True)
+    valid_pts = df.dropna(subset=['起點緯度', '起點經度'])
+    if not valid_pts.empty:
+        m_loc = folium.Map(location=[valid_pts['起點緯度'].median(), valid_pts['起點經度'].median()], zoom_start=11, tiles=None)
+        LocateControl(auto_start=False, flyTo=True).add_to(m_loc)
+        folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Earth", name="🛰️ 衛星空照圖").add_to(m_loc)
+        folium.TileLayer(tiles="OpenStreetMap", name="🗺️ 標準電子地圖").add_to(m_loc)
+        cmap = {"A": "#c05646", "B": "#d9822b", "C": "#4A6B82", "D": "#52796f", "其他": "#64748b"}
+        for _, r in valid_pts.iterrows():
+            g = str(r['定性分級'])
+            p_lat, p_lon = r['起點緯度'], r['起點經度']
+            popup = f"<b>{r['路線']} {r['里程樁號(起)']}</b><br/>卡號：{r['口卡編號']}<br/>分級：{g}級<br/>構造：{r.get('邊坡構造物', '自然邊坡')}<br/><a href='https://www.google.com/maps/dir/?api=1&destination={p_lat},{p_lon}' target='_blank'>🧭 導航至此處</a>"
+            folium.CircleMarker(location=[p_lat, p_lon], radius=6, popup=popup, color=cmap.get(g, '#64748b'), fill=True, fill_opacity=0.85).add_to(m_loc)
+        folium.LayerControl(position="topright").add_to(m_loc)
+        st_folium(m_loc, width="100%", height=530)
+
+# ==============================================================================
+# 頁面 4：災害斑點圖 (右側圖例顏色統一對齊)
+# ==============================================================================
+elif st.session_state.bottom_tab == "🔥 災害斑點圖":
+    st.markdown("<div class='map-sub-title notranslate' translate='no'>歷次災害斑點圖</div>", unsafe_allow_html=True)
+    if not df_disasters.empty:
+        m_dis = folium.Map(location=[df_disasters['緯度'].median(), df_disasters['經度'].median()], zoom_start=11, tiles=None)
+        LocateControl(auto_start=False, flyTo=True).add_to(m_dis)
+        folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Earth", name="🛰️ 衛星空照圖").add_to(m_dis)
+        folium.TileLayer(tiles="OpenStreetMap", name="🗺️ 標準電子地圖").add_to(m_dis)
+        
+        yp = {"112年": "#457b9d", "113年": "#e63946", "114年": "#f77f00", "115年": "#2a9d8f"}
+        for yr in sorted(df_disasters['年度'].unique()):
+            fg = folium.FeatureGroup(name=f"📍 {yr}")
+            for _, d in df_disasters[df_disasters['年度'] == yr].iterrows():
+                pop = f"<b>{d['災害名稱']}</b><br/>{d['詳細說明']}"
+                folium.CircleMarker(location=[d['緯度'], d['經度']], radius=5.5, popup=pop, color=yp.get(yr, "#8338ec"), fill=True, fill_opacity=0.9).add_to(fg)
+            fg.add_to(m_dis)
+        
+        # 覆寫客製化直觀圖例
+        legend_html = '''
+        <div style="position: fixed; bottom: 20px; right: 20px; width: 140px; background-color: rgba(255,255,255,0.9); z-index:9999; border-radius: 8px; padding: 12px; border: 2px solid #cbd5e1; box-shadow: 2px 2px 6px rgba(0,0,0,0.15);">
+            <p style="margin-top: 0; margin-bottom: 6px; font-weight: 800; font-size: 15px; color:#0f172a;">📍 災害年度</p>
+            <p style="margin: 4px 0; font-size: 14px; font-weight:bold; color:#0f172a;"><span style="color: #457b9d; font-size:18px;">●</span> 112年</p>
+            <p style="margin: 4px 0; font-size: 14px; font-weight:bold; color:#0f172a;"><span style="color: #e63946; font-size:18px;">●</span> 113年</p>
+            <p style="margin: 4px 0; font-size: 14px; font-weight:bold; color:#0f172a;"><span style="color: #f77f00; font-size:18px;">●</span> 114年</p>
+            <p style="margin: 4px 0; font-size: 14px; font-weight:bold; color:#0f172a;"><span style="color: #2a9d8f; font-size:18px;">●</span> 115年</p>
+        </div>
+        '''
+        m_dis.get_root().html.add_child(folium.Element(legend_html))
+        folium.LayerControl(position="topright", collapsed=True).add_to(m_dis)
+        st_folium(m_dis, width="100%", height=600)
+
+# ==============================================================================
+# 頁面 5：養護巡查 (新增各項單獨拍照、里程顯示、智慧備註與一鍵ZIP下載)
+# ==============================================================================
+elif st.session_state.bottom_tab == "📝 養護巡查":
+    st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡養護巡查檢測系統</div>", unsafe_allow_html=True)
+    st.caption("📱 外業專用檢測表：支援各設施獨立拍照、單鍵下載全組照片 (ZIP) 並產出標準 .doc 文件。")
+
+    slope_opts = df['口卡編號'].dropna().unique().tolist()
+    def_idx = slope_opts.index(st.session_state.target_slope_for_patrol) if "target_slope_for_patrol" in st.session_state and st.session_state.target_slope_for_patrol in slope_opts else 0
+    chosen_code = st.selectbox("🎯 巡查目標口卡編號", slope_opts, index=def_idx)
+    target_row = df[df['口卡編號'] == chosen_code].iloc[0]
+
+    raw_s = str(target_row.get('邊坡構造物', '自然邊坡'))
+    avail_s = list(dict.fromkeys([s.strip() for s in re.split(r'[,、]', raw_s) if s.strip()] + ["自然邊坡"]))
+    chosen_struct = st.selectbox("構造物設施類別", avail_s)
+    current_tpl = INSPECTION_TEMPLATES[match_template(chosen_struct)]
+
+    draft = st.session_state.patrol_draft.get(f"{chosen_code}_{chosen_struct}", {})
+
+    st.markdown("#### 一、 基本檢測環境")
+    c1, c2, c3, c4 = st.columns([1.1, 1.1, 0.9, 0.9])
+    with c1: 
+        f_date = st.date_input("檢測日期", draft.get("date", datetime.date.today()))
+    with c2: 
+        mile_text = target_row.get('里程樁號(起)', '')
+        st.text_input("里程樁號 (圖資定位里程)", value=mile_text, disabled=True)
+    with c3: 
+        f_weather = st.selectbox("天氣狀況", ["晴", "陰", "雨"], index=["晴", "陰", "雨"].index(draft.get("weather", "晴")))
+    with c4: 
+        f_type = st.selectbox("檢測類別", ["定期檢測", "特別檢測"], index=["定期檢測", "特別檢測"].index(draft.get("type", "定期檢測")))
+
+    cg1, cg2 = st.columns(2)
+    with cg1: f_geo = st.selectbox("地質狀況", ["土層邊坡", "岩層邊坡", "礫石層邊坡", "其他地質"], index=["土層邊坡", "岩層邊坡", "礫石層邊坡", "其他地質"].index(draft.get("geo", "土層邊坡")))
+    with cg2: f_water = st.selectbox("地下水／排水湧水狀況", ["乾燥", "濕潤", "表面水", "湧水"], index=["乾燥", "濕潤", "表面水", "湧水"].index(draft.get("water", "乾燥")))
+
+    cg3, cg4 = st.columns(2)
+    with cg3: f_drain = st.selectbox("排(洩)水管", ["正常", "阻塞"], index=["正常", "阻塞"].index(draft.get("drain", "正常")))
+    with cg4: f_disaster = st.selectbox("以往災害歷史", ["無", "有"], index=["無", "有"].index(draft.get("disaster", "無")))
+
+    # ---------------- 設施檢測項目 (結合單項拍照功能) ----------------
+    st.markdown("#### 二、 設施檢測項目與現地拍照記錄")
+    st.caption("📱 點擊各項目下方的「📸 上傳照片」，可直接開啟手機相機拍攝該項目特寫。")
     
-    logo_render = logo_svg
-    for possible_logo in ["LOGO.webp", "LOGO.png", "logo.png", "logo.webp"]:
-        if os.path.exists(possible_logo):
-            try:
-                with open(possible_logo, "rb") as f:
-                    b64_val = base64.b64encode(f.read()).decode()
-                    ext = "webp" if possible_logo.endswith("webp") else "png"
-                    logo_render = f'<img class="app-official-logo notranslate" src="data:image/{ext};base64,{b64_val}" alt="公路局LOGO" translate="no" />'
-                    break
-            except Exception:
-                pass
+    item_results = []
+    draft_items = draft.get("items", {})
+    all_item_photos = []
 
-    footer_html = (
-        "<div class='app-official-footer-bottom notranslate' translate='no'>"
-        "  <div class='footer-title-row'>"
-        f"    {logo_render}"
-        "    <span class='app-official-text notranslate' translate='no'>交通部公路局東區養護工程分局南澳工務段</span>"
-        "  </div>"
-        "  <div class='app-official-source notranslate' translate='no'>"
-        "    本網頁資料來源：邊坡全生命週期管理系統 "
-        "    <a href='https://slope.thb.gov.tw/thbslope' target='_blank' rel='noopener noreferrer'>"
-        "      https://slope.thb.gov.tw/thbslope"
-        "    </a>"
-        "  </div>"
-        "</div>"
-    )
-    return footer_html
+    for idx, (iname, iact) in enumerate(current_tpl["items"]):
+        st.markdown(f"**{idx+1}. {iname}**")
+        ci1, ci2 = st.columns([0.55, 0.45])
+        with ci1:
+            st.caption(f"措施：{iact}")
+            # 單項獨立拍照上傳按鈕
+            up_files = st.file_uploader(f"📸 拍攝此項目現況", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key=f"photo_item_{idx}", label_visibility="collapsed")
+            if up_files:
+                for f in up_files:
+                    all_item_photos.append(f.getvalue())
+        with ci2:
+            prev_res = draft_items.get(iname, {}).get("res", "○ 正常")
+            res_val = st.radio("結果", ["○ 正常", "× 異常", "／ 無此項"], index=["○ 正常", "× 異常", "／ 無此項"].index(prev_res) if prev_res in ["○ 正常", "× 異常", "／ 無此項"] else 0, horizontal=True, key=f"patrol_res_{idx}", label_visibility="collapsed")
+            desc_val = st.text_input(f"異常說明", value=draft_items.get(iname, {}).get("desc", ""), key=f"patrol_desc_{idx}", placeholder="輸入異常狀況...") if "×" in res_val else ""
+        item_results.append((iname, iact, res_val[0], desc_val))
+        st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px dashed var(--card-border);' />", unsafe_allow_html=True)
+
+    # ---------------- 現地備註與署名 (下拉式智慧模版) ----------------
+    st.markdown("#### 三、 現地綜合備註與署名")
+    
+    date_str = f"{f_date.year}年{f_date.month:02d}月{f_date.day:02d}日"
+    t1 = f"經本段{date_str}巡檢{chosen_struct}設施結構大致完整良好。"
+    t2 = f"經本段{date_str}巡檢{chosen_struct}林相完整，植生良好無坡面沖刷情形。"
+    t3 = f"經本段{date_str}巡檢{chosen_struct}大致完整且植生生長良好。"
+    t4 = f"經本段{date_str}巡檢{chosen_struct}大致完整良好且洩水孔排水功能暢通。"
+    t_custom = "✏️ 自訂輸入其他內容..."
+
+    remark_sel = st.selectbox("快速套用備註模版", [t1, t2, t3, t4, t_custom])
+    if remark_sel == t_custom:
+        f_remark = st.text_area("自訂現地備註", value=draft.get("remark", ""))
+    else:
+        f_remark = remark_sel
+
+    cu1, cu2 = st.columns(2)
+    with cu1: f_inspector = st.text_input("檢測人員姓名 (必填)", value=draft.get("inspector", ""), placeholder="例如：李工程師")
+    with cu2: f_supervisor = st.text_input("單位主管 (選填)", value=draft.get("supervisor", ""), placeholder="例如：段長")
+
+    st.markdown("---")
+    act_col1, act_col2, act_col3 = st.columns([1, 1, 1])
+    
+    with act_col1:
+        if st.button("💾 暫存草稿", use_container_width=True):
+            st.session_state.patrol_draft[f"{chosen_code}_{chosen_struct}"] = {
+                "date": f_date, "weather": f_weather, "type": f_type, "geo": f_geo, "water": f_water,
+                "drain": f_drain, "disaster": f_disaster, "remark": f_remark, "inspector": f_inspector,
+                "supervisor": f_supervisor, "items": {item[0]: {"res": item[2], "desc": item[3]} for item in item_results}
+            }
+            st.success("✅ 草稿已暫存！")
+
+    with act_col2:
+        export_name = f"邊坡口卡編號{chosen_code}-構造物{chosen_struct}.doc"
+        report_data = {
+            "title": current_tpl.get("title"), "category_col_header": current_tpl.get("category_col_header"),
+            "category_name": current_tpl.get("category_name"), "dim_title": current_tpl.get("dim_title"),
+            "dim_h_label": current_tpl.get("dim_h_label"), "dim_w_label": current_tpl.get("dim_w_label"),
+            "code": chosen_code, "date": f_date.strftime("%Y年%m月%d日"), "weather": f_weather, "type": f_type,
+            "unit": "南澳工務段", "location": f"{target_row.get('鄉鎮市區', '蘇澳鎮')} {target_row.get('路線', '')} {target_row.get('里程樁號(起)', '')}",
+            "direction": target_row.get("方向", "北下"), "geo": f_geo, "height": target_row.get("坡高", "30"),
+            "slope": target_row.get("坡度", "85"), "width": target_row.get("邊坡面寬", "200"), "water": f_water,
+            "drain": f_drain, "survey_month": f_date.month, "rain_days": "3", "check_rows": item_results,
+            "remark": f_remark.strip(), "inspector": f_inspector, "supervisor": f_supervisor
+        }
+        doc_bytes = generate_doc_report(report_data, all_item_photos)
+        st.download_button(label=f"📥 產出檢測表 (.doc)", data=doc_bytes, file_name=export_name, mime="application/msword", type="primary", use_container_width=True)
+
+    with act_col3:
+        if all_item_photos:
+            zip_bytes = create_photos_zip(all_item_photos, f"{chosen_code}_{chosen_struct}")
+            st.download_button(label=f"📦 打包下載全部照片 (ZIP)", data=zip_bytes, file_name=f"{chosen_code}_照片打包.zip", mime="application/zip", type="primary", use_container_width=True)
+        else:
+            st.button("📦 打包下載全部照片 (ZIP)", disabled=True, use_container_width=True)
+
+# 頁尾
+st.markdown(render_footer(), unsafe_allow_html=True)
