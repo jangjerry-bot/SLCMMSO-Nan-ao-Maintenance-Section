@@ -11,6 +11,7 @@ import zipfile
 import io
 import xml.etree.ElementTree as ET
 import re
+import base64
 
 os.makedirs(".streamlit", exist_ok=True)
 config_path = os.path.join(".streamlit", "config.toml")
@@ -263,7 +264,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                         st.caption(f"卡號：`{r['口卡編號']}` ｜ 構造物：`{r.get('邊坡構造物', '自然邊坡')}`")
 
 # ==============================================================================
-# 頁面 2：定量定性分級統計
+# 頁面 2：定量定性分級統計 (圖例整合數量標籤)
 # ==============================================================================
 elif st.session_state.bottom_tab == "📊 定量定性":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡定量定性分級統計</div>", unsafe_allow_html=True)
@@ -274,16 +275,26 @@ elif st.session_state.bottom_tab == "📊 定量定性":
     qual_df_raw['定性分級'] = qual_df_raw['定性分級'].replace({"其他": "其他(已廢線路段)"})
     qual_order = ["A", "B", "C", "D", "其他(已廢線路段)"]
     c_counts = qual_df_raw['定性分級'].value_counts()
-    qual_df = pd.DataFrame({"分級": qual_order, "數量": [c_counts.get(c, 0) for c in qual_order]})
-    qual_color = {"A": "#c05646", "B": "#d9822b", "C": "#4A6B82", "D": "#52796f", "其他(已廢線路段)": "#64748b"}
+    
+    # 組合含數量的標籤供圖例與長條圖顯示
+    qual_df = pd.DataFrame({
+        "分級": qual_order, 
+        "數量": [c_counts.get(c, 0) for c in qual_order],
+        "圖例標籤": [f"{c} ({c_counts.get(c, 0)})" for c in qual_order]
+    })
+    qual_color = {f"A ({c_counts.get('A', 0)})": "#c05646", 
+                  f"B ({c_counts.get('B', 0)})": "#d9822b", 
+                  f"C ({c_counts.get('C', 0)})": "#4A6B82", 
+                  f"D ({c_counts.get('D', 0)})": "#52796f", 
+                  f"其他(已廢線路段) ({c_counts.get('其他(已廢線路段)', 0)})": "#64748b"}
 
     if "圓餅圖" in chart_type:
-        fig_qual = px.pie(qual_df, values='數量', names='分級', hole=0.45, color='分級', color_discrete_map=qual_color, category_orders={"分級": qual_order})
+        fig_qual = px.pie(qual_df, values='數量', names='圖例標籤', hole=0.45, color='圖例標籤', color_discrete_map=qual_color, category_orders={"圖例標籤": qual_df['圖例標籤'].tolist()})
         fig_qual.update_traces(textposition='inside', textinfo='label', textfont_size=18, sort=False)
         fig_qual.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=18), legend=dict(font=dict(size=18)))
         st.plotly_chart(fig_qual, use_container_width=True)
     else:
-        fig_qual = px.bar(qual_df, x="分級", y="數量", text="數量", color="分級", color_discrete_map=qual_color, category_orders={"分級": qual_order})
+        fig_qual = px.bar(qual_df, x="圖例標籤", y="數量", text="數量", color="圖例標籤", color_discrete_map=qual_color, category_orders={"圖例標籤": qual_df['圖例標籤'].tolist()})
         fig_qual.update_traces(textposition='outside', textfont_size=18)
         fig_qual.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=350, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=18), legend=dict(font=dict(size=18)))
         st.plotly_chart(fig_qual, use_container_width=True)
@@ -291,17 +302,25 @@ elif st.session_state.bottom_tab == "📊 定量定性":
     st.markdown("---")
     st.markdown("### 2. RHRS定量分級統計")
     quant_order = ["第1級", "第2級", "第3級", "第4級", "第5級"]
-    quant_color = {"第1級": "#1e40af", "第2級": "#3b82f6", "第3級": "#f97316", "第4級": "#ef4444", "第5級": "#b91c1c"}
     q_counts = df['定量分級'].value_counts()
-    quant_df = pd.DataFrame({"RHRS定量分級": quant_order, "數量": [q_counts.get(c, 0) for c in quant_order]})
+    quant_df = pd.DataFrame({
+        "RHRS定量分級": quant_order, 
+        "數量": [q_counts.get(c, 0) for c in quant_order],
+        "圖例標籤": [f"{c} ({q_counts.get(c, 0)})" for c in quant_order]
+    })
+    quant_color = {f"第1級 ({q_counts.get('第1級', 0)})": "#1e40af", 
+                   f"第2級 ({q_counts.get('第2級', 0)})": "#3b82f6", 
+                   f"第3級 ({q_counts.get('第3級', 0)})": "#f97316", 
+                   f"第4級 ({q_counts.get('第4級', 0)})": "#ef4444", 
+                   f"第5級 ({q_counts.get('第5級', 0)})": "#b91c1c"}
 
     if "圓餅圖" in chart_type:
-        fig_quant = px.pie(quant_df, values='數量', names='RHRS定量分級', hole=0.45, color='RHRS定量分級', color_discrete_map=quant_color, category_orders={"RHRS定量分級": quant_order})
+        fig_quant = px.pie(quant_df, values='數量', names='圖例標籤', hole=0.45, color='圖例標籤', color_discrete_map=quant_color, category_orders={"圖例標籤": quant_df['圖例標籤'].tolist()})
         fig_quant.update_traces(textposition='inside', textinfo='label', textfont_size=18, sort=False)
         fig_quant.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=380, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=18), legend=dict(font=dict(size=18)))
         st.plotly_chart(fig_quant, use_container_width=True)
     else:
-        fig_quant = px.bar(quant_df, x="RHRS定量分級", y="數量", text="數量", color="RHRS定量分級", color_discrete_map=quant_color, category_orders={"RHRS定量分級": quant_order})
+        fig_quant = px.bar(quant_df, x="圖例標籤", y="數量", text="數量", color="圖例標籤", color_discrete_map=quant_color, category_orders={"圖例標籤": quant_df['圖例標籤'].tolist()})
         fig_quant.update_traces(textposition='outside', textfont_size=18)
         fig_quant.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=350, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=18), legend=dict(font=dict(size=18)))
         st.plotly_chart(fig_quant, use_container_width=True)
@@ -393,7 +412,7 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         st_folium(m_dis, width="100%", height=600)
 
 # ==============================================================================
-# 頁面 5：養護巡查
+# 頁面 5：養護巡查 (防 PWA 視窗陷阱 - 客製化 target_blank 下載按鈕)
 # ==============================================================================
 elif st.session_state.bottom_tab == "📝 養護巡查":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡養護巡查檢測系統</div>", unsafe_allow_html=True)
@@ -431,7 +450,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
     with cg3: f_drain = st.selectbox("排(洩)水管", ["正常", "阻塞"], index=["正常", "阻塞"].index(draft.get("drain", "正常")))
     with cg4: f_disaster = st.selectbox("以往災害歷史", ["無", "有"], index=["無", "有"].index(draft.get("disaster", "無")))
 
-    # ---------------- 設施檢測項目 (結合單項拍照功能) ----------------
     st.markdown("#### 二、 設施檢測項目與現地拍照記錄")
     st.caption("📱 點擊各項目下方的「📸 上傳照片」，可直接開啟手機相機拍攝該項目特寫。")
     
@@ -444,7 +462,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
         ci1, ci2 = st.columns([0.55, 0.45])
         with ci1:
             st.caption(f"措施：{iact}")
-            # 單項獨立拍照上傳按鈕
             up_files = st.file_uploader(f"📸 拍攝此項目現況", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key=f"photo_item_{idx}", label_visibility="collapsed")
             if up_files:
                 for f in up_files:
@@ -456,7 +473,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
         item_results.append((iname, iact, res_val[0], desc_val))
         st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px dashed var(--card-border);' />", unsafe_allow_html=True)
 
-    # ---------------- 現地備註與署名 (下拉式智慧模版，民國年) ----------------
     st.markdown("#### 三、 現地綜合備註與署名")
     
     date_str = f"{f_date.year - 1911}年{f_date.month:02d}月{f_date.day:02d}日"
@@ -477,6 +493,31 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
     with cu2: f_supervisor = st.text_input("單位主管 (選填)", value=draft.get("supervisor", "段長"), placeholder="例如：段長")
 
     st.markdown("---")
+    
+    # 產製報表資料
+    export_name_doc = f"邊坡口卡編號{chosen_code}-構造物{chosen_struct}.doc"
+    export_name_zip = f"{chosen_code}_照片打包.zip"
+    
+    report_data = {
+        "title": current_tpl.get("title"), "category_col_header": current_tpl.get("category_col_header"),
+        "category_name": current_tpl.get("category_name"), "dim_title": current_tpl.get("dim_title"),
+        "dim_h_label": current_tpl.get("dim_h_label"), "dim_w_label": current_tpl.get("dim_w_label"),
+        "code": chosen_code, "date": f"{f_date.year - 1911}年{f_date.month:02d}月{f_date.day:02d}日", "weather": f_weather, "type": f_type,
+        "unit": "南澳工務段", "location": f"{target_row.get('鄉鎮市區', '蘇澳鎮')} {target_row.get('路線', '')} {target_row.get('里程樁號(起)', '')}",
+        "direction": target_row.get("方向", "北下"), "geo": f_geo, "height": target_row.get("坡高", "30"),
+        "slope": target_row.get("坡度", "85"), "width": target_row.get("邊坡面寬", "200"), "water": f_water,
+        "drain": f_drain, "survey_month": f_date.month, "rain_days": "3", "check_rows": item_results,
+        "remark": f_remark.strip(), "inspector": f_inspector, "supervisor": f_supervisor
+    }
+    doc_bytes = generate_doc_report(report_data, all_item_photos)
+    b64_doc = base64.b64encode(doc_bytes).decode()
+    
+    if all_item_photos:
+        zip_bytes = create_photos_zip(all_item_photos, f"{chosen_code}_{chosen_struct}")
+        b64_zip = base64.b64encode(zip_bytes).decode()
+    else:
+        b64_zip = None
+
     act_col1, act_col2, act_col3 = st.columns([1, 1, 1])
     
     with act_col1:
@@ -489,27 +530,16 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
             st.success("✅ 草稿已暫存！")
 
     with act_col2:
-        export_name = f"邊坡口卡編號{chosen_code}-構造物{chosen_struct}.doc"
-        report_data = {
-            "title": current_tpl.get("title"), "category_col_header": current_tpl.get("category_col_header"),
-            "category_name": current_tpl.get("category_name"), "dim_title": current_tpl.get("dim_title"),
-            "dim_h_label": current_tpl.get("dim_h_label"), "dim_w_label": current_tpl.get("dim_w_label"),
-            "code": chosen_code, "date": f"{f_date.year - 1911}年{f_date.month:02d}月{f_date.day:02d}日", "weather": f_weather, "type": f_type,
-            "unit": "南澳工務段", "location": f"{target_row.get('鄉鎮市區', '蘇澳鎮')} {target_row.get('路線', '')} {target_row.get('里程樁號(起)', '')}",
-            "direction": target_row.get("方向", "北下"), "geo": f_geo, "height": target_row.get("坡高", "30"),
-            "slope": target_row.get("坡度", "85"), "width": target_row.get("邊坡面寬", "200"), "water": f_water,
-            "drain": f_drain, "survey_month": f_date.month, "rain_days": "3", "check_rows": item_results,
-            "remark": f_remark.strip(), "inspector": f_inspector, "supervisor": f_supervisor
-        }
-        doc_bytes = generate_doc_report(report_data, all_item_photos)
-        st.download_button(label=f"📥 產出檢測表 (.doc)", data=doc_bytes, file_name=export_name, mime="application/msword", type="primary", use_container_width=True)
+        # 強制 iOS 開啟新視窗下載，避免 PWA 卡死
+        href_doc = f'<a href="data:application/msword;base64,{b64_doc}" download="{export_name_doc}" target="_blank" class="pwa-download-btn">📥 產出檢測表 (.doc)</a>'
+        st.markdown(href_doc, unsafe_allow_html=True)
 
     with act_col3:
-        if all_item_photos:
-            zip_bytes = create_photos_zip(all_item_photos, f"{chosen_code}_{chosen_struct}")
-            st.download_button(label=f"📦 打包下載全部照片 (ZIP)", data=zip_bytes, file_name=f"{chosen_code}_照片打包.zip", mime="application/zip", type="primary", use_container_width=True)
+        if b64_zip:
+            href_zip = f'<a href="data:application/zip;base64,{b64_zip}" download="{export_name_zip}" target="_blank" class="pwa-download-btn">📦 打包下載全部照片 (ZIP)</a>'
+            st.markdown(href_zip, unsafe_allow_html=True)
         else:
-            st.button("📦 打包下載全部照片 (ZIP)", disabled=True, use_container_width=True)
+            st.markdown('<div class="pwa-download-btn" style="background-color:#94a3b8; cursor:not-allowed;">📦 尚無照片可打包</div>', unsafe_allow_html=True)
 
     st.markdown("<br/>", unsafe_allow_html=True)
     if st.button("⬅️ 完成巡查，返回邊坡清冊", type="secondary", use_container_width=True):
