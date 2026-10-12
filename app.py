@@ -114,76 +114,36 @@ def load_kmz():
 
 @st.cache_data
 def load_mileages():
-    milestones = []
-    target_file = None
-    is_network_link = False
-
-    for pf in ["mileages.kmz", "(新)南澳工務段轄區路線里程.kmz"]:
-        if os.path.exists(pf):
-            target_file = pf
-            break
-    if not target_file:
-        for f in os.listdir('.'):
-            if f.endswith('.kmz') and '災害' not in f:
-                target_file = f
-                break
-    
-    if target_file:
+    # ★★★ 全新升級：全台灣省道里程座標 CSV 高效讀取引擎 ★★★
+    target_file = "省道里程坐標(里程牌標誌).csv"
+    if os.path.exists(target_file):
         try:
-            with zipfile.ZipFile(target_file, 'r') as z:
-                kml_filename = [f for f in z.namelist() if f.endswith('.kml')][0]
-                kml_data = z.read(kml_filename)
-            root = ET.fromstring(kml_data)
-            for elem in root.iter():
-                if '}' in elem.tag:
-                    elem.tag = elem.tag.split('}', 1)[1]
+            # 採用 Big5-HKSCS 解析政府圖資編碼
+            df_csv = pd.read_csv(target_file, encoding='big5hkscs')
+            df_m = pd.DataFrame()
+            # 正規化路線名稱 (例如：台1 -> 台1線)
+            df_m['Route'] = df_csv['公路編號'].astype(str) + '線'
+            df_m['lat'] = df_csv['坐標-N-WGS84']
+            df_m['lon'] = df_csv['坐標-E-WGS84']
+            df_m['名稱'] = df_m['Route'] + ' ' + df_csv['起點樁號'].astype(str)
             
-            # 偵測是否為空殼網路連結
-            if root.find('.//NetworkLink') is not None and len(root.findall('.//Placemark')) == 0:
-                is_network_link = True
-            
-            # 強健的 KML 深度解析器 (支援 Folder 繼承路線名稱)
-            for folder in root.findall('.//Folder') + [root]:
-                folder_name_node = folder.find('name')
-                folder_name = folder_name_node.text.strip() if folder_name_node is not None and folder_name_node.text else ""
+            def parse_m(val):
+                if pd.isna(val): return None
+                m = re.match(r'(\d+)[Kk]\+?(\d+)?', str(val).strip())
+                if m:
+                    km = int(m.group(1))
+                    meters = int(m.group(2)) if m.group(2) else 0
+                    return km * 1000 + meters
+                return None
                 
-                route_from_folder = None
-                if '台' in folder_name:
-                    m = re.search(r'(台\s*\d+\s*[甲乙丙丁戊]?)', folder_name)
-                    if m:
-                        route_from_folder = m.group(1).replace(" ", "")
-                        if not route_from_folder.endswith('線'): route_from_folder += '線'
-
-                for pm in folder.findall('.//Placemark'):
-                    name_node = pm.find('name')
-                    name = name_node.text.strip() if name_node is not None and name_node.text else "Unnamed"
-                    
-                    coords_node = pm.find('.//Point/coordinates')
-                    if coords_node is None: coords_node = pm.find('.//coordinates')
-                    
-                    if coords_node is not None and coords_node.text:
-                        coords = coords_node.text.strip().split()[0].split(',')
-                        if len(coords) >= 2:
-                            route_val = route_from_folder
-                            meter_val = None
-                            
-                            m1 = re.search(r'(台\s*\d+\s*[甲乙丙丁戊]?線?)\s*(\d+)[kK](?:\+(\d+))?', name)
-                            if m1:
-                                route_val = m1.group(1).replace(" ", "")
-                                if not route_val.endswith('線'): route_val += '線'
-                                meter_val = int(m1.group(2)) * 1000 + (int(m1.group(3)) if m1.group(3) else 0)
-                            else:
-                                m2 = re.search(r'(\d+)[kK](?:\+(\d+))?', name)
-                                if m2:
-                                    meter_val = int(m2.group(1)) * 1000 + (int(m2.group(2)) if m2.group(2) else 0)
-                            
-                            if meter_val is not None and route_val is not None:
-                                milestones.append({'名稱': name, 'lat': float(coords[1]), 'lon': float(coords[0]), 'Route': route_val, 'Meters': meter_val})
-        except Exception:
+            df_m['Meters'] = df_csv['起點樁號'].apply(parse_m)
+            df_m = df_m.dropna(subset=['Route', 'Meters', 'lat', 'lon']).reset_index(drop=True)
+            return df_m, False, target_file
+        except Exception as e:
+            st.error(f"解析里程 CSV 檔案失敗: {e}")
             pass
             
-    df_m = pd.DataFrame(milestones)
-    return df_m, is_network_link, target_file
+    return pd.DataFrame(), False, target_file
 
 df = load_data()
 df_disasters = load_kmz()
@@ -215,7 +175,8 @@ def extract_gps(image_bytes):
             lat = get_decimal_from_dms(geotags['GPSLatitude'], geotags.get('GPSLatitudeRef', 'N'))
             lon = get_decimal_from_dms(geotags['GPSLongitude'], geotags.get('GPSLongitudeRef', 'E'))
             return lat, lon
-    except: pass
+    except Exception:
+        pass
     return None, None
 
 def get_interpolated_mileage(lat, lon, df_m):
@@ -230,7 +191,7 @@ def get_interpolated_mileage(lat, lon, df_m):
     if not route_A: return A['名稱'], distances.min()
 
     df_r = df_m[df_m['Route'] == route_A].copy()
-    df_r['dist'] = distances
+    df_r['dist'] = distances[df_r.index]
     df_r = df_r.sort_values('dist')
     
     if len(df_r) < 2: return A['名稱'], distances.min()
@@ -256,9 +217,6 @@ def create_photos_zip(photos, prefix_name):
 # 頁面 1：邊坡清冊
 # ==============================================================================
 if st.session_state.bottom_tab == "📋 邊坡清冊":
-    if is_network_link:
-        st.error(f"🚨 **系統診斷警告**：偵測到您上傳的 `{found_mileage_file}` 是一個「網路連結 (NetworkLink) 空殼檔案」，不包含任何座標。\n\n**修正方式**：請回 Google 我的地圖重新點選「匯出成 KML/KMZ」，並務必**取消勾選**「使用 KML 網路連結來保持更新」，再次下載並覆蓋 GitHub 上的檔案！")
-
     if st.session_state.selected_slope_id is not None:
         if st.button("⬅️ 返回邊坡清冊主畫面", key="detail_back_btn", use_container_width=True, type="primary"):
             st.session_state.selected_slope_id = None
@@ -456,9 +414,6 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
     
     search_res_ph = st.empty()
     valid_pts = df.dropna(subset=['起點緯度', '起點經度'])
-    
-    if is_network_link:
-        st.error(f"🚨 偵測到您上傳的 `{found_mileage_file}` 為空殼網路連結，請重新匯出實體檔案以啟用精準點圖定位！")
 
     if not valid_pts.empty:
         m_loc = folium.Map(location=[valid_pts['起點緯度'].median(), valid_pts['起點經度'].median()], zoom_start=11, tiles=None)
@@ -498,6 +453,8 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
             if not df_mileages.empty:
                 near_name, dist = get_interpolated_mileage(c_lat, c_lon, df_mileages)
                 search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
+            else:
+                search_res_ph.info("💡 *若要啟用精準點圖查詢，請確保系統目錄下包含 `省道里程坐標(里程牌標誌).csv`*")
 
 # ==============================================================================
 # 頁面 4：災害斑點圖
@@ -555,6 +512,8 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
             if not df_mileages.empty:
                 near_name, dist = get_interpolated_mileage(c_lat, c_lon, df_mileages)
                 search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
+            else:
+                search_res_ph.info("💡 *若要啟用精準點圖查詢，請確保系統目錄下包含 `省道里程坐標(里程牌標誌).csv`*")
 
 # ==============================================================================
 # 頁面 5：養護巡查
@@ -562,9 +521,6 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
 elif st.session_state.bottom_tab == "📝 養護巡查":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡養護巡查檢測系統</div>", unsafe_allow_html=True)
     st.caption("📱 外業專用檢測表：支援各設施獨立拍照、單鍵下載全組照片 (ZIP) 並產出標準 .doc 文件。")
-
-    if is_network_link:
-        st.error("🚨 警告：上傳的 `mileages.kmz` 為「網路連結(空殼)」檔案，無法啟動照片 GPS 空間內插引擎！請回 Google 我的地圖重新下載實體檔案。")
 
     slope_opts = df['口卡編號'].dropna().unique().tolist()
     def_idx = slope_opts.index(st.session_state.target_slope_for_patrol) if "target_slope_for_patrol" in st.session_state and st.session_state.target_slope_for_patrol in slope_opts else 0
@@ -578,37 +534,14 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
 
     draft = st.session_state.patrol_draft.get(f"{chosen_code}_{chosen_struct}", {})
 
-    photo_lat, photo_lon = None, None
-    for idx in range(len(current_tpl["items"])):
-        fs = st.session_state.get(f"photo_item_{idx}")
-        if fs:
-            for f in fs:
-                photo_lat, photo_lon = extract_gps(f.getvalue())
-                if photo_lat: break
-        if photo_lat: break
-    
-    mile_text = target_row.get('里程樁號(起)', '')
-    gps_info_msg = "ℹ️ 拍下或上傳第一張照片，系統將嘗試抓取 GPS 並內插精密樁號。"
-    gps_color = "normal"
-    
-    if photo_lat and photo_lon:
-        if not df_mileages.empty:
-            mile_text, dist = get_interpolated_mileage(photo_lat, photo_lon, df_mileages)
-            gps_info_msg = f"📍 已由照片解析 GPS ({photo_lat:.4f}, {photo_lon:.4f})，空間幾何內插定位：{mile_text}"
-            gps_color = "success"
-        else:
-            gps_info_msg = f"⚠️ 照片具備 GPS ({photo_lat:.4f}, {photo_lon:.4f})，但系統欠缺里程底圖(mileages.kmz)無法內插。"
-            gps_color = "warning"
-
     st.markdown("#### 一、 基本檢測環境")
+    
+    gps_info_ph = st.empty()
     c1, c2, c3, c4 = st.columns([1.1, 1.1, 0.9, 0.9])
     with c1: 
         f_date = st.date_input("檢測日期", draft.get("date", datetime.date.today()))
     with c2: 
-        st.text_input("里程樁號 (圖資定位里程)", value=mile_text, disabled=True)
-        if gps_color == "success": st.success(gps_info_msg)
-        elif gps_color == "warning": st.warning(gps_info_msg)
-        else: st.caption(gps_info_msg)
+        mile_text_ph = st.empty()
     with c3: 
         f_weather = st.selectbox("天氣狀況", ["晴", "陰", "雨"], index=["晴", "陰", "雨"].index(draft.get("weather", "晴")))
     with c4: 
@@ -628,6 +561,7 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
     item_results = []
     draft_items = draft.get("items", {})
     all_item_photos = []
+    photo_lat, photo_lon = None, None
 
     for idx, (iname, iact) in enumerate(current_tpl["items"]):
         st.markdown(f"**{iname}**")
@@ -637,7 +571,10 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
             up_files = st.file_uploader(f"📸 拍攝此項目現況", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key=f"photo_item_{idx}", label_visibility="collapsed")
             if up_files:
                 for f in up_files:
-                    all_item_photos.append(f.getvalue())
+                    img_bytes = f.getvalue()
+                    all_item_photos.append(img_bytes)
+                    if photo_lat is None:
+                        photo_lat, photo_lon = extract_gps(img_bytes)
         with ci2:
             prev_res = draft_items.get(iname, {}).get("res", "○ 正常")
             res_val = st.radio("結果", ["○ 正常", "× 異常", "／ 無此項"], index=["○ 正常", "× 異常", "／ 無此項"].index(prev_res) if prev_res in ["○ 正常", "× 異常", "／ 無此項"] else 0, horizontal=True, key=f"patrol_res_{idx}", label_visibility="collapsed")
@@ -645,6 +582,28 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
         item_results.append((iname, iact, res_val[0], desc_val))
         st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px dashed var(--card-border);' />", unsafe_allow_html=True)
 
+    # ---------------- 執行空間內插並回填至上方預留空間 ----------------
+    mile_text = target_row.get('里程樁號(起)', '')
+    gps_info_msg = "ℹ️ 拍下或上傳第一張照片，系統將嘗試抓取 GPS 並內插精密樁號。"
+    gps_color = "normal"
+    
+    if photo_lat and photo_lon:
+        if not df_mileages.empty:
+            mile_text, dist = get_interpolated_mileage(photo_lat, photo_lon, df_mileages)
+            gps_info_msg = f"📍 已由照片解析 GPS ({photo_lat:.4f}, {photo_lon:.4f})，空間幾何內插定位：{mile_text}"
+            gps_color = "success"
+        else:
+            gps_info_msg = f"⚠️ 照片具備 GPS ({photo_lat:.4f}, {photo_lon:.4f})，但系統欠缺里程底庫(省道里程坐標.csv)無法內插。"
+            gps_color = "warning"
+
+    with mile_text_ph:
+        st.text_input("里程樁號 (圖資定位里程)", value=mile_text, disabled=True)
+    with gps_info_ph:
+        if gps_color == "success": st.success(gps_info_msg)
+        elif gps_color == "warning": st.warning(gps_info_msg)
+        else: st.caption(gps_info_msg)
+
+    # ---------------- 現地備註與署名 ----------------
     st.markdown("#### 三、 現地綜合備註與署名")
     
     date_str = f"{f_date.year - 1911}年{f_date.month:02d}月{f_date.day:02d}日"
