@@ -12,6 +12,7 @@ import io
 import xml.etree.ElementTree as ET
 import re
 import base64
+import numpy as np
 
 os.makedirs(".streamlit", exist_ok=True)
 config_path = os.path.join(".streamlit", "config.toml")
@@ -51,7 +52,6 @@ with col_top_theme:
 
 st.markdown(render_top_logo(), unsafe_allow_html=True)
 
-# 導航鍵
 tabs = ["📋 邊坡清冊", "📊 定量定性", "🗺️ 地圖定位", "🔥 災害斑點", "📝 養護巡查"]
 nav_cols = st.columns(5)
 for i, tab_name in enumerate(tabs):
@@ -110,8 +110,36 @@ def load_kmz():
         pass
     return pd.DataFrame(disasters)
 
+@st.cache_data
+def load_mileages():
+    mileage_file = "mileages.kmz"
+    milestones = []
+    if os.path.exists(mileage_file):
+        try:
+            with zipfile.ZipFile(mileage_file, 'r') as z:
+                kml_filename = [f for f in z.namelist() if f.endswith('.kml')][0]
+                kml_data = z.read(kml_filename)
+            root = ET.fromstring(kml_data)
+            for elem in root.iter():
+                if '}' in elem.tag:
+                    elem.tag = elem.tag.split('}', 1)[1]
+            for pm in root.findall('.//Placemark'):
+                name_node = pm.find('name')
+                name = name_node.text.strip() if name_node is not None and name_node.text else "Unnamed"
+                coords_node = pm.find('.//Point/coordinates')
+                if coords_node is None:
+                    coords_node = pm.find('.//coordinates')
+                if coords_node is not None and coords_node.text:
+                    coords = coords_node.text.strip().split()[0].split(',')
+                    if len(coords) >= 2:
+                        milestones.append({'名稱': name, 'lat': float(coords[1]), 'lon': float(coords[0])})
+        except Exception:
+            pass
+    return pd.DataFrame(milestones)
+
 df = load_data()
 df_disasters = load_kmz()
+df_mileages = load_mileages()
 
 if df.empty:
     st.error(f"找不到邊坡資料檔案：{DATA_FILE}")
@@ -123,6 +151,17 @@ def create_photos_zip(photos, prefix_name):
         for i, photo_bytes in enumerate(photos):
             zip_file.writestr(f"{prefix_name}-{i+1}.jpg", photo_bytes)
     return zip_buffer.getvalue()
+
+def get_nearest_point(lat, lon, df_target, lat_col, lon_col, name_col):
+    if df_target.empty: return None, None
+    lat1, lon1 = np.radians(lat), np.radians(lon)
+    lat2, lon2 = np.radians(df_target[lat_col]), np.radians(df_target[lon_col])
+    dlat, dlon = lat2 - lat1, lon2 - lon1
+    a = np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2.0)**2
+    c = 2 * np.arcsin(np.sqrt(a))
+    distances = c * 6371000
+    min_idx = distances.idxmin()
+    return df_target.loc[min_idx, name_col], distances[min_idx]
 
 # ==============================================================================
 # 頁面 1：邊坡清冊
@@ -264,7 +303,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                         st.caption(f"卡號：`{r['口卡編號']}` ｜ 構造物：`{r.get('邊坡構造物', '自然邊坡')}`")
 
 # ==============================================================================
-# 頁面 2：定量定性分級統計 (圖例整合數量標籤)
+# 頁面 2：定量定性分級統計
 # ==============================================================================
 elif st.session_state.bottom_tab == "📊 定量定性":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡定量定性分級統計</div>", unsafe_allow_html=True)
@@ -276,7 +315,6 @@ elif st.session_state.bottom_tab == "📊 定量定性":
     qual_order = ["A", "B", "C", "D", "其他(已廢線路段)"]
     c_counts = qual_df_raw['定性分級'].value_counts()
     
-    # 組合含數量的標籤供圖例與長條圖顯示
     qual_df = pd.DataFrame({
         "分級": qual_order, 
         "數量": [c_counts.get(c, 0) for c in qual_order],
@@ -326,10 +364,14 @@ elif st.session_state.bottom_tab == "📊 定量定性":
         st.plotly_chart(fig_quant, use_container_width=True)
 
 # ==============================================================================
-# 頁面 3：地圖定位
+# 頁面 3：地圖定位 (加入點圖定位演算法)
 # ==============================================================================
 elif st.session_state.bottom_tab == "🗺️ 地圖定位":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡空間地圖定位</div>", unsafe_allow_html=True)
+    
+    # 用來放置點擊分析結果的預留空間
+    search_res_ph = st.empty()
+    
     valid_pts = df.dropna(subset=['起點緯度', '起點經度'])
     if not valid_pts.empty:
         m_loc = folium.Map(location=[valid_pts['起點緯度'].median(), valid_pts['起點經度'].median()], zoom_start=11, tiles=None)
@@ -361,13 +403,30 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
             popup = folium.Popup(popup_html, max_width=400)
             folium.CircleMarker(location=[p_lat, p_lon], radius=6, popup=popup, color=cmap.get(g, '#64748b'), fill=True, fill_opacity=0.85).add_to(m_loc)
         folium.LayerControl(position="topright").add_to(m_loc)
-        st_folium(m_loc, width="100%", height=530)
+        
+        map_output = st_folium(m_loc, width="100%", height=530)
+        
+        # 攔截點擊事件並進行空間運算
+        if map_output and map_output.get("last_clicked"):
+            c_lat = map_output["last_clicked"]["lat"]
+            c_lon = map_output["last_clicked"]["lng"]
+            
+            if not df_mileages.empty:
+                near_name, dist = get_nearest_point(c_lat, c_lon, df_mileages, 'lat', 'lon', '名稱')
+                search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
+            else:
+                near_code, dist = get_nearest_point(c_lat, c_lon, valid_pts, '起點緯度', '起點經度', '口卡編號')
+                near_row = valid_pts[valid_pts['口卡編號'] == near_code].iloc[0]
+                search_res_ph.info(f"🎯 **點圖定位分析**：距離最近列管邊坡為 **{near_row['路線']} {near_row['里程樁號(起)']}**（約 {dist:.0f} 公尺）\n\n💡 *若要啟用 100m 精準樁號查詢，請上傳您的 KMZ 並命名為 `mileages.kmz`*")
 
 # ==============================================================================
 # 頁面 4：災害斑點圖
 # ==============================================================================
 elif st.session_state.bottom_tab == "🔥 災害斑點圖":
     st.markdown("<div class='map-sub-title notranslate' translate='no'>歷次災害斑點圖</div>", unsafe_allow_html=True)
+    
+    search_res_ph = st.empty()
+    
     if not df_disasters.empty:
         m_dis = folium.Map(location=[df_disasters['緯度'].median(), df_disasters['經度'].median()], zoom_start=11, tiles=None)
         
@@ -409,10 +468,21 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         '''
         m_dis.get_root().html.add_child(folium.Element(legend_html))
         folium.LayerControl(position="topright", collapsed=True).add_to(m_dis)
-        st_folium(m_dis, width="100%", height=600)
+        
+        map_output = st_folium(m_dis, width="100%", height=600)
+        
+        if map_output and map_output.get("last_clicked"):
+            c_lat = map_output["last_clicked"]["lat"]
+            c_lon = map_output["last_clicked"]["lng"]
+            
+            if not df_mileages.empty:
+                near_name, dist = get_nearest_point(c_lat, c_lon, df_mileages, 'lat', 'lon', '名稱')
+                search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
+            else:
+                search_res_ph.info("💡 *若要啟用 100m 精準點圖查詢，請上傳 KMZ 並命名為 `mileages.kmz`*")
 
 # ==============================================================================
-# 頁面 5：養護巡查 (防 PWA 視窗陷阱 - 客製化 target_blank 下載按鈕)
+# 頁面 5：養護巡查
 # ==============================================================================
 elif st.session_state.bottom_tab == "📝 養護巡查":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡養護巡查檢測系統</div>", unsafe_allow_html=True)
@@ -494,7 +564,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
 
     st.markdown("---")
     
-    # 產製報表資料
     export_name_doc = f"邊坡口卡編號{chosen_code}-構造物{chosen_struct}.doc"
     export_name_zip = f"{chosen_code}_照片打包.zip"
     
@@ -530,7 +599,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
             st.success("✅ 草稿已暫存！")
 
     with act_col2:
-        # 強制 iOS 開啟新視窗下載，避免 PWA 卡死
         href_doc = f'<a href="data:application/msword;base64,{b64_doc}" download="{export_name_doc}" target="_blank" class="pwa-download-btn">📥 產出檢測表 (.doc)</a>'
         st.markdown(href_doc, unsafe_allow_html=True)
 
