@@ -116,6 +116,8 @@ def load_kmz():
 def load_mileages():
     milestones = []
     target_file = None
+    is_network_link = False
+
     for pf in ["mileages.kmz", "(新)南澳工務段轄區路線里程.kmz"]:
         if os.path.exists(pf):
             target_file = pf
@@ -125,6 +127,7 @@ def load_mileages():
             if f.endswith('.kmz') and '災害' not in f:
                 target_file = f
                 break
+    
     if target_file:
         try:
             with zipfile.ZipFile(target_file, 'r') as z:
@@ -134,31 +137,57 @@ def load_mileages():
             for elem in root.iter():
                 if '}' in elem.tag:
                     elem.tag = elem.tag.split('}', 1)[1]
-            for pm in root.findall('.//Placemark'):
-                name_node = pm.find('name')
-                name = name_node.text.strip() if name_node is not None and name_node.text else "Unnamed"
-                coords_node = pm.find('.//Point/coordinates')
-                if coords_node is None: coords_node = pm.find('.//coordinates')
-                if coords_node is not None and coords_node.text:
-                    coords = coords_node.text.strip().split()[0].split(',')
-                    if len(coords) >= 2:
-                        milestones.append({'名稱': name, 'lat': float(coords[1]), 'lon': float(coords[0])})
+            
+            # 偵測是否為空殼網路連結
+            if root.find('.//NetworkLink') is not None and len(root.findall('.//Placemark')) == 0:
+                is_network_link = True
+            
+            # 強健的 KML 深度解析器 (支援 Folder 繼承路線名稱)
+            for folder in root.findall('.//Folder') + [root]:
+                folder_name_node = folder.find('name')
+                folder_name = folder_name_node.text.strip() if folder_name_node is not None and folder_name_node.text else ""
+                
+                route_from_folder = None
+                if '台' in folder_name:
+                    m = re.search(r'(台\s*\d+\s*[甲乙丙丁戊]?)', folder_name)
+                    if m:
+                        route_from_folder = m.group(1).replace(" ", "")
+                        if not route_from_folder.endswith('線'): route_from_folder += '線'
+
+                for pm in folder.findall('.//Placemark'):
+                    name_node = pm.find('name')
+                    name = name_node.text.strip() if name_node is not None and name_node.text else "Unnamed"
+                    
+                    coords_node = pm.find('.//Point/coordinates')
+                    if coords_node is None: coords_node = pm.find('.//coordinates')
+                    
+                    if coords_node is not None and coords_node.text:
+                        coords = coords_node.text.strip().split()[0].split(',')
+                        if len(coords) >= 2:
+                            route_val = route_from_folder
+                            meter_val = None
+                            
+                            m1 = re.search(r'(台\s*\d+\s*[甲乙丙丁戊]?線?)\s*(\d+)[kK](?:\+(\d+))?', name)
+                            if m1:
+                                route_val = m1.group(1).replace(" ", "")
+                                if not route_val.endswith('線'): route_val += '線'
+                                meter_val = int(m1.group(2)) * 1000 + (int(m1.group(3)) if m1.group(3) else 0)
+                            else:
+                                m2 = re.search(r'(\d+)[kK](?:\+(\d+))?', name)
+                                if m2:
+                                    meter_val = int(m2.group(1)) * 1000 + (int(m2.group(2)) if m2.group(2) else 0)
+                            
+                            if meter_val is not None and route_val is not None:
+                                milestones.append({'名稱': name, 'lat': float(coords[1]), 'lon': float(coords[0]), 'Route': route_val, 'Meters': meter_val})
         except Exception:
             pass
+            
     df_m = pd.DataFrame(milestones)
-    if not df_m.empty:
-        def parse_m(n):
-            match = re.match(r'(.+?線)\s*(\d+)[kK]\+(\d+)', str(n).strip())
-            if match:
-                return match.group(1).strip(), int(match.group(2)) * 1000 + int(match.group(3))
-            return None, None
-        df_m['Route'], df_m['Meters'] = zip(*df_m['名稱'].apply(parse_m))
-        df_m = df_m.dropna(subset=['Route', 'Meters'])
-    return df_m
+    return df_m, is_network_link, target_file
 
 df = load_data()
 df_disasters = load_kmz()
-df_mileages = load_mileages()
+df_mileages, is_network_link, found_mileage_file = load_mileages()
 
 if df.empty:
     st.error(f"找不到邊坡資料檔案：{DATA_FILE}")
@@ -227,6 +256,9 @@ def create_photos_zip(photos, prefix_name):
 # 頁面 1：邊坡清冊
 # ==============================================================================
 if st.session_state.bottom_tab == "📋 邊坡清冊":
+    if is_network_link:
+        st.error(f"🚨 **系統診斷警告**：偵測到您上傳的 `{found_mileage_file}` 是一個「網路連結 (NetworkLink) 空殼檔案」，不包含任何座標。\n\n**修正方式**：請回 Google 我的地圖重新點選「匯出成 KML/KMZ」，並務必**取消勾選**「使用 KML 網路連結來保持更新」，再次下載並覆蓋 GitHub 上的檔案！")
+
     if st.session_state.selected_slope_id is not None:
         if st.button("⬅️ 返回邊坡清冊主畫面", key="detail_back_btn", use_container_width=True, type="primary"):
             st.session_state.selected_slope_id = None
@@ -425,6 +457,9 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
     search_res_ph = st.empty()
     valid_pts = df.dropna(subset=['起點緯度', '起點經度'])
     
+    if is_network_link:
+        st.error(f"🚨 偵測到您上傳的 `{found_mileage_file}` 為空殼網路連結，請重新匯出實體檔案以啟用精準點圖定位！")
+
     if not valid_pts.empty:
         m_loc = folium.Map(location=[valid_pts['起點緯度'].median(), valid_pts['起點經度'].median()], zoom_start=11, tiles=None)
         
@@ -463,8 +498,6 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
             if not df_mileages.empty:
                 near_name, dist = get_interpolated_mileage(c_lat, c_lon, df_mileages)
                 search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
-            else:
-                search_res_ph.info("💡 *若要啟用 100m 精準點圖查詢，請於系統上傳 `mileages.kmz`*")
 
 # ==============================================================================
 # 頁面 4：災害斑點圖
@@ -522,15 +555,16 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
             if not df_mileages.empty:
                 near_name, dist = get_interpolated_mileage(c_lat, c_lon, df_mileages)
                 search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
-            else:
-                search_res_ph.info("💡 *若要啟用 100m 精準點圖查詢，請於系統上傳 `mileages.kmz`*")
 
 # ==============================================================================
-# 頁面 5：養護巡查 (掛載照片 EXIF 自動內插引擎)
+# 頁面 5：養護巡查
 # ==============================================================================
 elif st.session_state.bottom_tab == "📝 養護巡查":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡養護巡查檢測系統</div>", unsafe_allow_html=True)
     st.caption("📱 外業專用檢測表：支援各設施獨立拍照、單鍵下載全組照片 (ZIP) 並產出標準 .doc 文件。")
+
+    if is_network_link:
+        st.error("🚨 警告：上傳的 `mileages.kmz` 為「網路連結(空殼)」檔案，無法啟動照片 GPS 空間內插引擎！請回 Google 我的地圖重新下載實體檔案。")
 
     slope_opts = df['口卡編號'].dropna().unique().tolist()
     def_idx = slope_opts.index(st.session_state.target_slope_for_patrol) if "target_slope_for_patrol" in st.session_state and st.session_state.target_slope_for_patrol in slope_opts else 0
@@ -544,7 +578,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
 
     draft = st.session_state.patrol_draft.get(f"{chosen_code}_{chosen_struct}", {})
 
-    # ---------- 掃描照片獲取 GPS 並啟動內插計算 ----------
     photo_lat, photo_lon = None, None
     for idx in range(len(current_tpl["items"])):
         fs = st.session_state.get(f"photo_item_{idx}")
@@ -597,7 +630,7 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
     all_item_photos = []
 
     for idx, (iname, iact) in enumerate(current_tpl["items"]):
-        st.markdown(f"**{idx+1}. {iname}**")
+        st.markdown(f"**{iname}**")
         ci1, ci2 = st.columns([0.55, 0.45])
         with ci1:
             st.caption(f"措施：{iact}")
