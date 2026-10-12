@@ -13,6 +13,8 @@ import xml.etree.ElementTree as ET
 import re
 import base64
 import numpy as np
+from PIL import Image
+from PIL.ExifTags import TAGS, GPSTAGS
 
 os.makedirs(".streamlit", exist_ok=True)
 config_path = os.path.join(".streamlit", "config.toml")
@@ -112,11 +114,20 @@ def load_kmz():
 
 @st.cache_data
 def load_mileages():
-    mileage_file = "mileages.kmz"
     milestones = []
-    if os.path.exists(mileage_file):
+    target_file = None
+    for pf in ["mileages.kmz", "(新)南澳工務段轄區路線里程.kmz"]:
+        if os.path.exists(pf):
+            target_file = pf
+            break
+    if not target_file:
+        for f in os.listdir('.'):
+            if f.endswith('.kmz') and '災害' not in f:
+                target_file = f
+                break
+    if target_file:
         try:
-            with zipfile.ZipFile(mileage_file, 'r') as z:
+            with zipfile.ZipFile(target_file, 'r') as z:
                 kml_filename = [f for f in z.namelist() if f.endswith('.kml')][0]
                 kml_data = z.read(kml_filename)
             root = ET.fromstring(kml_data)
@@ -127,15 +138,23 @@ def load_mileages():
                 name_node = pm.find('name')
                 name = name_node.text.strip() if name_node is not None and name_node.text else "Unnamed"
                 coords_node = pm.find('.//Point/coordinates')
-                if coords_node is None:
-                    coords_node = pm.find('.//coordinates')
+                if coords_node is None: coords_node = pm.find('.//coordinates')
                 if coords_node is not None and coords_node.text:
                     coords = coords_node.text.strip().split()[0].split(',')
                     if len(coords) >= 2:
                         milestones.append({'名稱': name, 'lat': float(coords[1]), 'lon': float(coords[0])})
         except Exception:
             pass
-    return pd.DataFrame(milestones)
+    df_m = pd.DataFrame(milestones)
+    if not df_m.empty:
+        def parse_m(n):
+            match = re.match(r'(.+?線)\s*(\d+)[kK]\+(\d+)', str(n).strip())
+            if match:
+                return match.group(1).strip(), int(match.group(2)) * 1000 + int(match.group(3))
+            return None, None
+        df_m['Route'], df_m['Meters'] = zip(*df_m['名稱'].apply(parse_m))
+        df_m = df_m.dropna(subset=['Route', 'Meters'])
+    return df_m
 
 df = load_data()
 df_disasters = load_kmz()
@@ -145,23 +164,64 @@ if df.empty:
     st.error(f"找不到邊坡資料檔案：{DATA_FILE}")
     st.stop()
 
+# ==================== 核心演算法：照片 EXIF GPS 解析與空間內插計算 ====================
+def get_decimal_from_dms(dms, ref):
+    try:
+        dec = float(dms[0]) + float(dms[1])/60.0 + float(dms[2])/3600.0
+        return -dec if ref in ['S', 'W'] else dec
+    except: return None
+
+def extract_gps(image_bytes):
+    try:
+        image = Image.open(io.BytesIO(image_bytes))
+        exif = image._getexif()
+        if not exif: return None, None
+        geotags = {}
+        for (idx, tag) in TAGS.items():
+            if tag == 'GPSInfo' and idx in exif:
+                for (key, val) in GPSTAGS.items():
+                    if key in exif[idx]: geotags[val] = exif[idx][key]
+                break
+        if 'GPSLatitude' in geotags and 'GPSLongitude' in geotags:
+            lat = get_decimal_from_dms(geotags['GPSLatitude'], geotags.get('GPSLatitudeRef', 'N'))
+            lon = get_decimal_from_dms(geotags['GPSLongitude'], geotags.get('GPSLongitudeRef', 'E'))
+            return lat, lon
+    except: pass
+    return None, None
+
+def get_interpolated_mileage(lat, lon, df_m):
+    if df_m.empty or 'Route' not in df_m.columns: return "計算失敗", 0
+    lat1, lon1 = np.radians(lat), np.radians(lon)
+    lat2, lon2 = np.radians(df_m['lat']), np.radians(df_m['lon'])
+    a = np.sin((lat2-lat1)/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin((lon2-lon1)/2)**2
+    distances = 2 * np.arcsin(np.sqrt(a)) * 6371000
+    
+    A = df_m.loc[distances.idxmin()]
+    route_A = A['Route']
+    if not route_A: return A['名稱'], distances.min()
+
+    df_r = df_m[df_m['Route'] == route_A].copy()
+    df_r['dist'] = distances
+    df_r = df_r.sort_values('dist')
+    
+    if len(df_r) < 2: return A['名稱'], distances.min()
+    B = df_r.iloc[1]
+
+    dx_AB, dy_AB = B['lon'] - A['lon'], B['lat'] - A['lat']
+    dx_AC, dy_AC = lon - A['lon'], lat - A['lat']
+    len2 = dx_AB**2 + dy_AB**2
+    if len2 == 0: return A['名稱'], distances.min()
+    
+    t = max(-1.0, min(1.0, (dx_AC * dx_AB + dy_AC * dy_AB) / len2))
+    im = A['Meters'] + t * (B['Meters'] - A['Meters'])
+    return f"{route_A} {int(im//1000)}k+{int(im%1000):03d}", distances.min()
+
 def create_photos_zip(photos, prefix_name):
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for i, photo_bytes in enumerate(photos):
             zip_file.writestr(f"{prefix_name}-{i+1}.jpg", photo_bytes)
     return zip_buffer.getvalue()
-
-def get_nearest_point(lat, lon, df_target, lat_col, lon_col, name_col):
-    if df_target.empty: return None, None
-    lat1, lon1 = np.radians(lat), np.radians(lon)
-    lat2, lon2 = np.radians(df_target[lat_col]), np.radians(df_target[lon_col])
-    dlat, dlon = lat2 - lat1, lon2 - lon1
-    a = np.sin(dlat/2.0)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2.0)**2
-    c = 2 * np.arcsin(np.sqrt(a))
-    distances = c * 6371000
-    min_idx = distances.idxmin()
-    return df_target.loc[min_idx, name_col], distances[min_idx]
 
 # ==============================================================================
 # 頁面 1：邊坡清冊
@@ -256,7 +316,6 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 match_cond |= f_df['邊坡方向'].astype(str).str.contains(search_kw_clean, case=False, na=False)
             if search_kw_clean == "其他":
                 match_cond |= f_df['定性分級'].astype(str).str.contains("其他", case=False, na=False)
-                
             f_df = f_df[match_cond]
 
         q_counts = f_df['定性分級'].value_counts()
@@ -316,14 +375,11 @@ elif st.session_state.bottom_tab == "📊 定量定性":
     c_counts = qual_df_raw['定性分級'].value_counts()
     
     qual_df = pd.DataFrame({
-        "分級": qual_order, 
-        "數量": [c_counts.get(c, 0) for c in qual_order],
+        "分級": qual_order, "數量": [c_counts.get(c, 0) for c in qual_order],
         "圖例標籤": [f"{c} ({c_counts.get(c, 0)})" for c in qual_order]
     })
-    qual_color = {f"A ({c_counts.get('A', 0)})": "#c05646", 
-                  f"B ({c_counts.get('B', 0)})": "#d9822b", 
-                  f"C ({c_counts.get('C', 0)})": "#4A6B82", 
-                  f"D ({c_counts.get('D', 0)})": "#52796f", 
+    qual_color = {f"A ({c_counts.get('A', 0)})": "#c05646", f"B ({c_counts.get('B', 0)})": "#d9822b", 
+                  f"C ({c_counts.get('C', 0)})": "#4A6B82", f"D ({c_counts.get('D', 0)})": "#52796f", 
                   f"其他(已廢線路段) ({c_counts.get('其他(已廢線路段)', 0)})": "#64748b"}
 
     if "圓餅圖" in chart_type:
@@ -342,14 +398,11 @@ elif st.session_state.bottom_tab == "📊 定量定性":
     quant_order = ["第1級", "第2級", "第3級", "第4級", "第5級"]
     q_counts = df['定量分級'].value_counts()
     quant_df = pd.DataFrame({
-        "RHRS定量分級": quant_order, 
-        "數量": [q_counts.get(c, 0) for c in quant_order],
+        "RHRS定量分級": quant_order, "數量": [q_counts.get(c, 0) for c in quant_order],
         "圖例標籤": [f"{c} ({q_counts.get(c, 0)})" for c in quant_order]
     })
-    quant_color = {f"第1級 ({q_counts.get('第1級', 0)})": "#1e40af", 
-                   f"第2級 ({q_counts.get('第2級', 0)})": "#3b82f6", 
-                   f"第3級 ({q_counts.get('第3級', 0)})": "#f97316", 
-                   f"第4級 ({q_counts.get('第4級', 0)})": "#ef4444", 
+    quant_color = {f"第1級 ({q_counts.get('第1級', 0)})": "#1e40af", f"第2級 ({q_counts.get('第2級', 0)})": "#3b82f6", 
+                   f"第3級 ({q_counts.get('第3級', 0)})": "#f97316", f"第4級 ({q_counts.get('第4級', 0)})": "#ef4444", 
                    f"第5級 ({q_counts.get('第5級', 0)})": "#b91c1c"}
 
     if "圓餅圖" in chart_type:
@@ -364,15 +417,14 @@ elif st.session_state.bottom_tab == "📊 定量定性":
         st.plotly_chart(fig_quant, use_container_width=True)
 
 # ==============================================================================
-# 頁面 3：地圖定位 (加入點圖定位演算法)
+# 頁面 3：地圖定位
 # ==============================================================================
 elif st.session_state.bottom_tab == "🗺️ 地圖定位":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡空間地圖定位</div>", unsafe_allow_html=True)
     
-    # 用來放置點擊分析結果的預留空間
     search_res_ph = st.empty()
-    
     valid_pts = df.dropna(subset=['起點緯度', '起點經度'])
+    
     if not valid_pts.empty:
         m_loc = folium.Map(location=[valid_pts['起點緯度'].median(), valid_pts['起點經度'].median()], zoom_start=11, tiles=None)
         
@@ -406,18 +458,13 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
         
         map_output = st_folium(m_loc, width="100%", height=530)
         
-        # 攔截點擊事件並進行空間運算
         if map_output and map_output.get("last_clicked"):
-            c_lat = map_output["last_clicked"]["lat"]
-            c_lon = map_output["last_clicked"]["lng"]
-            
+            c_lat, c_lon = map_output["last_clicked"]["lat"], map_output["last_clicked"]["lng"]
             if not df_mileages.empty:
-                near_name, dist = get_nearest_point(c_lat, c_lon, df_mileages, 'lat', 'lon', '名稱')
+                near_name, dist = get_interpolated_mileage(c_lat, c_lon, df_mileages)
                 search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
             else:
-                near_code, dist = get_nearest_point(c_lat, c_lon, valid_pts, '起點緯度', '起點經度', '口卡編號')
-                near_row = valid_pts[valid_pts['口卡編號'] == near_code].iloc[0]
-                search_res_ph.info(f"🎯 **點圖定位分析**：距離最近列管邊坡為 **{near_row['路線']} {near_row['里程樁號(起)']}**（約 {dist:.0f} 公尺）\n\n💡 *若要啟用 100m 精準樁號查詢，請上傳您的 KMZ 並命名為 `mileages.kmz`*")
+                search_res_ph.info("💡 *若要啟用 100m 精準點圖查詢，請於系統上傳 `mileages.kmz`*")
 
 # ==============================================================================
 # 頁面 4：災害斑點圖
@@ -470,19 +517,16 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         folium.LayerControl(position="topright", collapsed=True).add_to(m_dis)
         
         map_output = st_folium(m_dis, width="100%", height=600)
-        
         if map_output and map_output.get("last_clicked"):
-            c_lat = map_output["last_clicked"]["lat"]
-            c_lon = map_output["last_clicked"]["lng"]
-            
+            c_lat, c_lon = map_output["last_clicked"]["lat"], map_output["last_clicked"]["lng"]
             if not df_mileages.empty:
-                near_name, dist = get_nearest_point(c_lat, c_lon, df_mileages, 'lat', 'lon', '名稱')
+                near_name, dist = get_interpolated_mileage(c_lat, c_lon, df_mileages)
                 search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
             else:
-                search_res_ph.info("💡 *若要啟用 100m 精準點圖查詢，請上傳 KMZ 並命名為 `mileages.kmz`*")
+                search_res_ph.info("💡 *若要啟用 100m 精準點圖查詢，請於系統上傳 `mileages.kmz`*")
 
 # ==============================================================================
-# 頁面 5：養護巡查
+# 頁面 5：養護巡查 (掛載照片 EXIF 自動內插引擎)
 # ==============================================================================
 elif st.session_state.bottom_tab == "📝 養護巡查":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡養護巡查檢測系統</div>", unsafe_allow_html=True)
@@ -500,13 +544,38 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
 
     draft = st.session_state.patrol_draft.get(f"{chosen_code}_{chosen_struct}", {})
 
+    # ---------- 掃描照片獲取 GPS 並啟動內插計算 ----------
+    photo_lat, photo_lon = None, None
+    for idx in range(len(current_tpl["items"])):
+        fs = st.session_state.get(f"photo_item_{idx}")
+        if fs:
+            for f in fs:
+                photo_lat, photo_lon = extract_gps(f.getvalue())
+                if photo_lat: break
+        if photo_lat: break
+    
+    mile_text = target_row.get('里程樁號(起)', '')
+    gps_info_msg = "ℹ️ 拍下或上傳第一張照片，系統將嘗試抓取 GPS 並內插精密樁號。"
+    gps_color = "normal"
+    
+    if photo_lat and photo_lon:
+        if not df_mileages.empty:
+            mile_text, dist = get_interpolated_mileage(photo_lat, photo_lon, df_mileages)
+            gps_info_msg = f"📍 已由照片解析 GPS ({photo_lat:.4f}, {photo_lon:.4f})，空間幾何內插定位：{mile_text}"
+            gps_color = "success"
+        else:
+            gps_info_msg = f"⚠️ 照片具備 GPS ({photo_lat:.4f}, {photo_lon:.4f})，但系統欠缺里程底圖(mileages.kmz)無法內插。"
+            gps_color = "warning"
+
     st.markdown("#### 一、 基本檢測環境")
     c1, c2, c3, c4 = st.columns([1.1, 1.1, 0.9, 0.9])
     with c1: 
         f_date = st.date_input("檢測日期", draft.get("date", datetime.date.today()))
     with c2: 
-        mile_text = target_row.get('里程樁號(起)', '')
         st.text_input("里程樁號 (圖資定位里程)", value=mile_text, disabled=True)
+        if gps_color == "success": st.success(gps_info_msg)
+        elif gps_color == "warning": st.warning(gps_info_msg)
+        else: st.caption(gps_info_msg)
     with c3: 
         f_weather = st.selectbox("天氣狀況", ["晴", "陰", "雨"], index=["晴", "陰", "雨"].index(draft.get("weather", "晴")))
     with c4: 
@@ -572,7 +641,7 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
         "category_name": current_tpl.get("category_name"), "dim_title": current_tpl.get("dim_title"),
         "dim_h_label": current_tpl.get("dim_h_label"), "dim_w_label": current_tpl.get("dim_w_label"),
         "code": chosen_code, "date": f"{f_date.year - 1911}年{f_date.month:02d}月{f_date.day:02d}日", "weather": f_weather, "type": f_type,
-        "unit": "南澳工務段", "location": f"{target_row.get('鄉鎮市區', '蘇澳鎮')} {target_row.get('路線', '')} {target_row.get('里程樁號(起)', '')}",
+        "unit": "南澳工務段", "location": f"{target_row.get('鄉鎮市區', '蘇澳鎮')} {target_row.get('路線', '')} {mile_text}",
         "direction": target_row.get("方向", "北下"), "geo": f_geo, "height": target_row.get("坡高", "30"),
         "slope": target_row.get("坡度", "85"), "width": target_row.get("邊坡面寬", "200"), "water": f_water,
         "drain": f_drain, "survey_month": f_date.month, "rain_days": "3", "check_rows": item_results,
