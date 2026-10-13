@@ -156,7 +156,6 @@ if df.empty:
     st.error(f"找不到邊坡資料檔案：{DATA_FILE}")
     st.stop()
 
-# ==================== 核心演算法：照片 EXIF GPS 解析與空間內插計算 ====================
 def get_decimal_from_dms(dms, ref):
     try:
         dec = float(dms[0]) + float(dms[1])/60.0 + float(dms[2])/3600.0
@@ -212,8 +211,10 @@ def get_interpolated_mileage(lat, lon, df_m):
 def create_photos_zip(photos, prefix_name):
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
-        for i, photo_bytes in enumerate(photos):
-            zip_file.writestr(f"{prefix_name}-{i+1}.jpg", photo_bytes)
+        for i, photo_data in enumerate(photos):
+            # 支援 Tuple (img_bytes, desc) 提取機制
+            p_bytes = photo_data[0] if isinstance(photo_data, tuple) else photo_data
+            zip_file.writestr(f"{prefix_name}-{i+1}.jpg", p_bytes)
     return zip_buffer.getvalue()
 
 # ==============================================================================
@@ -566,22 +567,39 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
     all_item_photos = []
     photo_lat, photo_lon = None, None
 
+    # ===== 核心修正：將資料輸入區移至照片上傳之前，確保動態擷取說明欄位文字 =====
     for idx, (iname, iact) in enumerate(current_tpl["items"]):
         st.markdown(f"**{iname}**")
         ci1, ci2 = st.columns([0.55, 0.45])
+        
+        with ci2:
+            prev_res = draft_items.get(iname, {}).get("res", "○ 正常")
+            res_val = st.radio("結果", ["○ 正常", "× 異常", "／ 無此項"], index=["○ 正常", "× 異常", "／ 無此項"].index(prev_res) if prev_res in ["○ 正常", "× 異常", "／ 無此項"] else 0, horizontal=True, key=f"patrol_res_{idx}", label_visibility="collapsed")
+            desc_val = st.text_input(f"異常說明", value=draft_items.get(iname, {}).get("desc", ""), key=f"patrol_desc_{idx}", placeholder="輸入異常狀況...") if "×" in res_val else ""
+            
         with ci1:
             st.caption(f"措施：{iact}")
             up_files = st.file_uploader(f"📸 拍攝此項目現況", type=["jpg", "png", "jpeg"], accept_multiple_files=True, key=f"photo_item_{idx}", label_visibility="collapsed")
             if up_files:
                 for f in up_files:
                     img_bytes = f.getvalue()
-                    all_item_photos.append(img_bytes)
+                    
+                    # 智慧連動照片說明文字
+                    if "×" in res_val and desc_val:
+                        p_desc = f"【{iname}】異常說明：{desc_val}"
+                    elif "×" in res_val:
+                        p_desc = f"【{iname}】異常"
+                    elif "／" in res_val:
+                        p_desc = f"【{iname}】無此項"
+                    else:
+                        p_desc = f"【{iname}】現況正常"
+                        
+                    # 將影像與動態擷取的說明字串打包成 Tuple 存入陣列
+                    all_item_photos.append((img_bytes, p_desc))
+                    
                     if photo_lat is None:
                         photo_lat, photo_lon = extract_gps(img_bytes)
-        with ci2:
-            prev_res = draft_items.get(iname, {}).get("res", "○ 正常")
-            res_val = st.radio("結果", ["○ 正常", "× 異常", "／ 無此項"], index=["○ 正常", "× 異常", "／ 無此項"].index(prev_res) if prev_res in ["○ 正常", "× 異常", "／ 無此項"] else 0, horizontal=True, key=f"patrol_res_{idx}", label_visibility="collapsed")
-            desc_val = st.text_input(f"異常說明", value=draft_items.get(iname, {}).get("desc", ""), key=f"patrol_desc_{idx}", placeholder="輸入異常狀況...") if "×" in res_val else ""
+                        
         item_results.append((iname, iact, res_val[0], desc_val))
         st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px dashed var(--card-border);' />", unsafe_allow_html=True)
 

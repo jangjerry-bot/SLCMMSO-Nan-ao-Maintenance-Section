@@ -1,7 +1,6 @@
 # inspection_schema.py
 import base64
 
-# 這裡存放所有公路局規範的檢測項目字典
 INSPECTION_TEMPLATES = {
     "岩(地)錨(格梁)": {
         "title": "表A3-6 岩（地）錨（格梁）護坡設施",
@@ -64,6 +63,9 @@ def generate_doc_report(data, photos):
     chk_reg = "■" if data.get('type') == "定期檢測" else "□"
     chk_spc = "■" if data.get('type') == "特別檢測" else "□"
 
+    # ===== 1. 抓取整體備註，確保無論寫什麼都帶入 =====
+    remark_val = data.get('remark', '').strip()
+    
     html_head = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -175,12 +177,17 @@ def generate_doc_report(data, photos):
         html_items += "</tr>"
 
     html_items += f"""
-        <tr><td style="text-align:center; font-weight:bold;">備 註</td><td colspan="5" style="font-size:11.5px; padding:4px 6px;">{data.get('remark', '')}</td></tr>
+        <tr><td style="text-align:center; font-weight:bold;">備 註</td><td colspan="5" style="font-size:11.5px; padding:4px 6px;">{remark_val}</td></tr>
         <tr><td colspan="6" style="padding:6px 10px;"><span style="font-weight:bold;">檢測人員：</span>{data.get('inspector', '')}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="font-weight:bold;">單位主管：</span>{data.get('supervisor', '')}</td></tr>
     </table>
 """
 
-    # 【更新】照片附件：依照右側標準範本設計四列式表格排版 (編號與標題、照片、說明、備註)
+    # ===== 2. 組合照片表底部備註條款 =====
+    remark_html = "1.如有需要，可另外加頁以容納更多圖片。<br>2.記錄照片應於上次檢查時所拍攝之同一位置拍攝。"
+    # 如果使用者有填寫「自訂現地備註」，我們強力置入在照片下方，絕對不會漏看！
+    if remark_val:
+        remark_html += f"<br><br><span style='font-weight:bold; color:#0f172a;'>【現地綜合備註】：</span>{remark_val}"
+
     html_photos = f"""
         <div style="page-break-before:always; margin-top:20px;"></div>
         <div style="text-align:center; font-size:16px; font-weight:bold; margin-bottom:5px;">
@@ -199,8 +206,16 @@ def generate_doc_report(data, photos):
         </table>
 """
     if photos:
-        for idx, p_bytes in enumerate(photos):
+        for idx, photo_data in enumerate(photos):
+            
+            # ===== 3. 解開 Tuple 取出影像與對應的「異常說明」 =====
+            if isinstance(photo_data, tuple):
+                p_bytes, p_desc = photo_data
+            else:
+                p_bytes, p_desc = photo_data, ""
+                
             b64_img = base64.b64encode(p_bytes).decode()
+            
             html_photos += f"""
             <table style="width:100%; border-collapse:collapse; margin-top:12px; page-break-inside:avoid;">
                 <tr>
@@ -208,20 +223,19 @@ def generate_doc_report(data, photos):
                     <td style="border:1px solid #000; width:85%; text-align:center; font-weight:bold; padding:6px; letter-spacing:2px; font-size:14px;">紀 錄 圖 片</td>
                 </tr>
                 <tr>
-                    <td style="border:1px solid #000; text-align:center; vertical-align:middle; font-size:12px;">(請自填)</td>
+                    <td style="border:1px solid #000; text-align:center; vertical-align:middle; font-size:14px; font-weight:bold;">{idx+1}</td>
                     <td style="border:1px solid #000; text-align:center; padding:10px;">
                         <img src="data:image/jpeg;base64,{b64_img}" style="max-height: 350px; max-width: 95%; object-fit: contain;">
                     </td>
                 </tr>
                 <tr>
                     <td style="border:1px solid #000; text-align:center; font-weight:bold; letter-spacing:4px; padding:18px 0; font-size:14px;">說 明</td>
-                    <td style="border:1px solid #000; padding:18px;"></td>
+                    <td style="border:1px solid #000; padding:18px; font-size:14px; text-align:left; vertical-align:middle; font-weight:bold; color:#0f172a;">{p_desc}</td>
                 </tr>
                 <tr>
                     <td style="border:1px solid #000; text-align:center; font-weight:bold; letter-spacing:4px; padding:10px 0; font-size:14px;">備 註</td>
                     <td style="border:1px solid #000; padding:8px 10px; font-size:12px; line-height:1.6; text-align:left;">
-                        1.如有需要，可另外加頁以容納更多圖片。<br>
-                        2.記錄照片應於上次檢查時所拍攝之同一位置拍攝。
+                        {remark_html}
                     </td>
                 </tr>
             </table>
