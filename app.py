@@ -29,7 +29,6 @@ if not os.path.exists(config_path) or open(config_path, "r", encoding="utf-8").r
     with open(config_path, "w", encoding="utf-8") as f:
         f.write(config_content)
 
-# 強制重新載入 style 模組，避免快取問題
 import importlib
 import style
 importlib.reload(style)
@@ -50,15 +49,17 @@ plotly_font_color = "#0f172a" if is_light else "#f8fafc"
 
 st.markdown(get_theme_css(is_light), unsafe_allow_html=True)
 
-_, col_top_theme = st.columns([0.65, 0.35])
-with col_top_theme:
+# ===== 全新佈局：三欄式對齊，解決頂部遮擋並與標題齊平 =====
+top_col1, top_col2, top_col3 = st.columns([1.5, 6, 2.5])
+with top_col2:
+    st.markdown(render_top_logo(), unsafe_allow_html=True)
+with top_col3:
+    # 增加垂直間距，使其與左側標題視覺齊平
+    st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
     selected_theme = st.radio("色彩模式", ["🌙 深色黑底", "☀️ 淺色白底"], index=1 if is_light else 0, horizontal=True, label_visibility="collapsed")
     if selected_theme != st.session_state.theme_mode:
         st.session_state.theme_mode = selected_theme
         st.rerun()
-
-# --- 這裡呼叫 style.py 的標題與手冊渲染 ---
-st.markdown(render_top_logo(), unsafe_allow_html=True)
 
 tabs = ["📋 邊坡清冊", "📊 定量定性", "🗺️ 地圖定位", "🔥 災害斑點", "📝 養護巡查"]
 nav_cols = st.columns(5)
