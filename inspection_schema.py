@@ -1,7 +1,7 @@
 # inspection_schema.py
 import base64
 
-# 這裡存放所有公路局規範的檢測項目字典 (您可以自行擴充其他如 噴凝土、防石柵 等)
+# 這裡存放所有公路局規範的檢測項目字典
 INSPECTION_TEMPLATES = {
     "岩(地)錨(格梁)": {
         "title": "表A3-6 岩（地）錨（格梁）護坡設施",
@@ -55,18 +55,15 @@ INSPECTION_TEMPLATES = {
 }
 
 def match_template(struct_name):
-    # 模糊比對構造物名稱，找不到則預設為自然邊坡
     for k in INSPECTION_TEMPLATES.keys():
         if k in str(struct_name):
             return k
     return "自然邊坡"
 
 def generate_doc_report(data, photos):
-    # 檢查類型打勾
     chk_reg = "■" if data.get('type') == "定期檢測" else "□"
     chk_spc = "■" if data.get('type') == "特別檢測" else "□"
 
-    # 表頭基本屬性
     html_head = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -138,7 +135,7 @@ def generate_doc_report(data, photos):
         </tr>
     </table>
 """
-    # 檢測項目表
+
     html_items = f"""
     <table style="margin-top: -1px;">
         <colgroup>
@@ -183,7 +180,7 @@ def generate_doc_report(data, photos):
     </table>
 """
 
-    # 【選項B】客製化：照片附件直接連動主表標題
+    # 【更新】照片附件：依照右側標準範本設計四列式表格排版 (編號與標題、照片、說明、備註)
     html_photos = f"""
         <div style="page-break-before:always; margin-top:20px;"></div>
         <div style="text-align:center; font-size:16px; font-weight:bold; margin-bottom:5px;">
@@ -205,12 +202,26 @@ def generate_doc_report(data, photos):
         for idx, p_bytes in enumerate(photos):
             b64_img = base64.b64encode(p_bytes).decode()
             html_photos += f"""
-            <table style="width:100%; border-collapse:collapse; margin-top:8px; page-break-inside:avoid;">
+            <table style="width:100%; border-collapse:collapse; margin-top:12px; page-break-inside:avoid;">
                 <tr>
-                    <td style="border:1px solid #000; width:10%; text-align:center; font-weight:bold;">編號</td>
-                    <td style="border:1px solid #000; width:20%; font-weight:bold; text-align:center;">紀 錄 圖 片<br>(請自填)</td>
+                    <td style="border:1px solid #000; width:15%; text-align:center; font-weight:bold; padding:6px; font-size:14px;">編號</td>
+                    <td style="border:1px solid #000; width:85%; text-align:center; font-weight:bold; padding:6px; letter-spacing:2px; font-size:14px;">紀 錄 圖 片</td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; text-align:center; vertical-align:middle; font-size:12px;">(請自填)</td>
                     <td style="border:1px solid #000; text-align:center; padding:10px;">
-                        <img src="data:image/jpeg;base64,{b64_img}" style="max-height: 280px; max-width: 95%; object-fit: contain;">
+                        <img src="data:image/jpeg;base64,{b64_img}" style="max-height: 350px; max-width: 95%; object-fit: contain;">
+                    </td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; text-align:center; font-weight:bold; letter-spacing:4px; padding:18px 0; font-size:14px;">說 明</td>
+                    <td style="border:1px solid #000; padding:18px;"></td>
+                </tr>
+                <tr>
+                    <td style="border:1px solid #000; text-align:center; font-weight:bold; letter-spacing:4px; padding:10px 0; font-size:14px;">備 註</td>
+                    <td style="border:1px solid #000; padding:8px 10px; font-size:12px; line-height:1.6; text-align:left;">
+                        1.如有需要，可另外加頁以容納更多圖片。<br>
+                        2.記錄照片應於上次檢查時所拍攝之同一位置拍攝。
                     </td>
                 </tr>
             </table>
@@ -221,5 +232,4 @@ def generate_doc_report(data, photos):
     html_end = "</body></html>"
     full_html = html_head + html_items + html_photos + html_end
     
-    # 輸出微軟 Word 支援的 UTF-8 BOM 格式位元組
     return "\ufeff".encode('utf-8') + full_html.encode('utf-8')
