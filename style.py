@@ -100,16 +100,21 @@ def get_theme_css(is_light: bool) -> str:
     [class*="immersive-translate"], .immersive-translate-target-wrapper { display: none !important; height: 0 !important; }
     #MainMenu, footer { visibility: hidden; }
     
-    .block-container { max-width: 100% !important; width: 100% !important; padding-top: clamp(2rem, 3.5vh, 3.5rem) !important; padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important; padding-left: clamp(10px, 2.5vw, 32px) !important; padding-right: clamp(10px, 2.5vw, 32px) !important; margin: 0 auto !important; }
+    .block-container { max-width: 100% !important; width: 100% !important; padding-top: clamp(1rem, 2.5vh, 2.5rem) !important; padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important; padding-left: clamp(10px, 2.5vw, 32px) !important; padding-right: clamp(10px, 2.5vw, 32px) !important; margin: 0 auto !important; }
     
-    .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: clamp(8px, 1.2vw, 14px) !important; margin-top: 2px !important; margin-bottom: 12px !important; width: 100% !important; }
-    .app-top-logo { width: clamp(38px, 4.2vw, 52px) !important; height: auto !important; margin-bottom: 0px !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.25)) !important; }
+    /* ===== 全新升級：頂部標題與 3D LOGO 排版 ===== */
+    .system-header-box { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 8px !important; margin-top: 0px !important; margin-bottom: 20px !important; width: 100% !important; text-align: center !important; }
+    
+    /* 將 3D LOGO 大幅放大，使其更具視覺張力 */
+    .app-top-logo { width: clamp(80px, 14vw, 120px) !important; height: auto !important; margin-bottom: 2px !important; flex-shrink: 0 !important; filter: drop-shadow(0 4px 12px rgba(56, 189, 248, 0.35)) !important; }
     
     /* 標題與手冊連結的排版 */
-    .title-wrapper { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; }
-    .system-title { font-size: clamp(18px, 2.5vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 1px; color: #4A6B82 !important; margin: 0 !important; }
-    .manual-link { font-size: clamp(12px, 1.6vw, 15px) !important; font-weight: 700 !important; color: #0284c7 !important; text-decoration: none !important; margin-top: 4px; display:inline-block; transition: all 0.2s ease; }
-    .manual-link:hover { color: #0369a1 !important; text-decoration: underline !important; }
+    .title-wrapper { display:flex; flex-direction:column; align-items:center; justify-content:center; width: 100%; }
+    .system-title { font-size: clamp(22px, 3.2vw, 32px) !important; line-height: 1.3 !important; font-weight: 900 !important; letter-spacing: 1.5px; color: #4A6B82 !important; margin: 0 !important; text-align: center !important; }
+    
+    /* 改良版的膠囊按鈕式連結，置中對齊 */
+    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(13px, 1.6vw, 15px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 6px 18px; border-radius: 20px; margin-top: 10px; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .manual-link-btn:hover { background-color: #bae6fd; color: #0c4a6e !important; transform: translateY(-1px); box-shadow: 0 3px 5px rgba(0,0,0,0.1); }
 
     .map-sub-title { font-size: clamp(16px, 2.4vw, 20px) !important; line-height: 1.3 !important; font-weight: 800 !important; letter-spacing: 0.8px; color: #4A6B82 !important; text-align: center !important; display: block !important; width: 100%; margin-top: 0px !important; margin-bottom: 6px !important; }
 
@@ -149,18 +154,20 @@ def get_theme_css(is_light: bool) -> str:
     return splash_overlay_html + style_part
 
 def render_top_logo() -> str:
-    # 判斷手冊檔案是否存在，存在的話就掛上超連結
-    manual_link = ""
-    manual_file = "南澳邊坡全生命週期資料庫系統_操作與養護巡查作業教學手冊-v3.pdf"
-    if os.path.exists(manual_file):
-        # 讀取檔案內容轉為 Base64 (解決 PWA 無法直接存取本地檔案的問題)
-        try:
-            with open(manual_file, "rb") as f:
-                b64_pdf = base64.b64encode(f.read()).decode()
-            href = f"data:application/pdf;base64,{b64_pdf}"
-            manual_link = f'<a href="{href}" download="{manual_file}" target="_blank" class="manual-link">📘 操作與養護巡查作業教學手冊</a>'
-        except Exception:
-            pass
+    import os, base64
+    
+    manual_link = '<div style="color:#ef4444; font-size:12px; font-weight:bold; margin-top:6px;">⚠️ 尚未偵測到手冊檔案 (請確認 GitHub 目錄下有包含「手冊」二字的 pdf 檔)</div>'
+    
+    try:
+        for f in os.listdir('.'):
+            if '手冊' in f and f.lower().endswith('.pdf'):
+                with open(f, "rb") as pdf_file:
+                    b64_pdf = base64.b64encode(pdf_file.read()).decode()
+                href = f"data:application/pdf;base64,{b64_pdf}"
+                manual_link = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 下載操作與養護巡查作業教學手冊</a>'
+                break
+    except Exception as e:
+        manual_link = f'<div style="color:#ef4444; font-size:12px; margin-top:6px;">⚠️ 手冊讀取失敗: {e}</div>'
 
     return f"""
     <div class="system-header-box notranslate" translate="no">
