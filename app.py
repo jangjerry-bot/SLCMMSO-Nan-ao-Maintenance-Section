@@ -49,13 +49,11 @@ plotly_font_color = "#0f172a" if is_light else "#f8fafc"
 
 st.markdown(get_theme_css(is_light), unsafe_allow_html=True)
 
-# ===== 全新佈局：三欄式對齊，解決頂部遮擋並與標題齊平 =====
-top_col1, top_col2, top_col3 = st.columns([1.5, 6, 2.5])
-with top_col2:
-    st.markdown(render_top_logo(), unsafe_allow_html=True)
-with top_col3:
-    # 增加垂直間距，使其與左側標題視覺齊平
-    st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
+# 確保 UI 頭部正確佈局與主題切換按鈕不被遮擋
+st.markdown(render_top_logo(), unsafe_allow_html=True)
+
+_, col_theme_right = st.columns([8, 2])
+with col_theme_right:
     selected_theme = st.radio("色彩模式", ["🌙 深色黑底", "☀️ 淺色白底"], index=1 if is_light else 0, horizontal=True, label_visibility="collapsed")
     if selected_theme != st.session_state.theme_mode:
         st.session_state.theme_mode = selected_theme
@@ -221,6 +219,9 @@ def create_photos_zip(photos, prefix_name):
 # 頁面 1：邊坡清冊
 # ==============================================================================
 if st.session_state.bottom_tab == "📋 邊坡清冊":
+    if is_network_link:
+        st.error(f"🚨 **系統診斷警告**：偵測到您上傳的 `{found_mileage_file}` 是一個「網路連結 (NetworkLink) 空殼檔案」，不包含任何座標。\n\n**修正方式**：請回 Google 我的地圖重新點選「匯出成 KML/KMZ」，並務必**取消勾選**「使用 KML 網路連結來保持更新」，再次下載並覆蓋 GitHub 上的檔案！")
+
     if st.session_state.selected_slope_id is not None:
         if st.button("⬅️ 返回邊坡清冊主畫面", key="detail_back_btn", use_container_width=True, type="primary"):
             st.session_state.selected_slope_id = None
