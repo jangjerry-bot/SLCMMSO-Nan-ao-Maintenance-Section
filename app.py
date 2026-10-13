@@ -29,7 +29,6 @@ if not os.path.exists(config_path) or open(config_path, "r", encoding="utf-8").r
     with open(config_path, "w", encoding="utf-8") as f:
         f.write(config_content)
 
-# ===== 核心修正：強制清洗伺服器快取，確保讀取到最新版的排版與樣式！ =====
 import importlib
 import style
 import inspection_schema
@@ -51,10 +50,11 @@ plotly_font_color = "#0f172a" if is_light else "#f8fafc"
 
 st.markdown(get_theme_css(is_light), unsafe_allow_html=True)
 
-st.markdown(render_top_logo(), unsafe_allow_html=True)
-
-_, col_theme_right = st.columns([8, 2])
-with col_theme_right:
+top_col1, top_col2, top_col3 = st.columns([1.5, 6, 2.5])
+with top_col2:
+    st.markdown(render_top_logo(), unsafe_allow_html=True)
+with top_col3:
+    st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
     selected_theme = st.radio("色彩模式", ["🌙 深色黑底", "☀️ 淺色白底"], index=1 if is_light else 0, horizontal=True, label_visibility="collapsed")
     if selected_theme != st.session_state.theme_mode:
         st.session_state.theme_mode = selected_theme
@@ -653,6 +653,15 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
 
     act_col1, act_col2, act_col3 = st.columns([1, 1, 1])
     
+    # 內聯按鈕樣式：完美模擬 Streamlit 預設 Secondary 按鈕，並支援深淺色動態切換
+    btn_style = (
+        "display: flex; align-items: center; justify-content: center; width: 100%; "
+        "padding: 0.25rem 0.75rem; min-height: 41px; "
+        "background-color: var(--btn-sec-bg); color: var(--btn-sec-text); "
+        "border: 1px solid var(--btn-sec-border); border-radius: 8px; "
+        "text-decoration: none; font-size: 16px; font-weight: 800;"
+    )
+    
     with act_col1:
         if st.button("💾 暫存草稿", use_container_width=True):
             st.session_state.patrol_draft[f"{chosen_code}_{chosen_struct}"] = {
@@ -663,15 +672,16 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
             st.success("✅ 草稿已暫存！")
 
     with act_col2:
-        href_doc = f'<a href="data:application/msword;base64,{b64_doc}" download="{export_name_doc}" target="_blank" class="pwa-download-btn">📥 產出檢測表 (.doc)</a>'
+        href_doc = f'<a href="data:application/msword;base64,{b64_doc}" download="{export_name_doc}" target="_blank" style="{btn_style}">📥 產出檢測表 (.doc)</a>'
         st.markdown(href_doc, unsafe_allow_html=True)
 
     with act_col3:
         if b64_zip:
-            href_zip = f'<a href="data:application/zip;base64,{b64_zip}" download="{export_name_zip}" target="_blank" class="pwa-download-btn">📦 打包下載全部照片 (ZIP)</a>'
+            href_zip = f'<a href="data:application/zip;base64,{b64_zip}" download="{export_name_zip}" target="_blank" style="{btn_style}">📦 打包下載全部照片 (ZIP)</a>'
             st.markdown(href_zip, unsafe_allow_html=True)
         else:
-            st.markdown('<div class="pwa-download-btn" style="background-color:#94a3b8; cursor:not-allowed;">📦 尚無照片可打包</div>', unsafe_allow_html=True)
+            disabled_style = btn_style + " opacity: 0.5; cursor: not-allowed;"
+            st.markdown(f'<div style="{disabled_style}">📦 尚無照片可打包</div>', unsafe_allow_html=True)
 
     st.markdown("<br/>", unsafe_allow_html=True)
     if st.button("⬅️ 完成巡查，返回邊坡清冊", type="secondary", use_container_width=True):
