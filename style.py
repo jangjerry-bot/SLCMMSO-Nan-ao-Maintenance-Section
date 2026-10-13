@@ -100,22 +100,20 @@ def get_theme_css(is_light: bool) -> str:
     [class*="immersive-translate"], .immersive-translate-target-wrapper { display: none !important; height: 0 !important; }
     #MainMenu, footer { visibility: hidden; }
     
-    .block-container { max-width: 100% !important; width: 100% !important; padding-top: clamp(1rem, 2.5vh, 2.5rem) !important; padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important; padding-left: clamp(10px, 2.5vw, 32px) !important; padding-right: clamp(10px, 2.5vw, 32px) !important; margin: 0 auto !important; }
+    /* ===== 核心修正：大幅拉開頂部安全邊距 (Padding-top) 解決「削頭」問題 ===== */
+    .block-container { max-width: 100% !important; width: 100% !important; padding-top: clamp(3.5rem, 6vh, 4.5rem) !important; padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important; padding-left: clamp(10px, 2.5vw, 32px) !important; padding-right: clamp(10px, 2.5vw, 32px) !important; margin: 0 auto !important; }
     
-    /* ===== 重新設計：水平佈局，節省垂直空間 ===== */
     .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 12px !important; margin-top: 0px !important; margin-bottom: 20px !important; width: 100% !important; }
     
-    /* 調整 3D LOGO 大小，配合水平排列 */
     .app-top-logo { width: clamp(50px, 12vw, 80px) !important; height: auto !important; margin-bottom: 0px !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.3)) !important; }
     
-    /* 標題與手冊連結的排版，靠左對齊 */
-    .title-wrapper { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; }
+    /* ===== 核心修正：標題與按鈕改為「水平並排 (Row)」 ===== */
+    .title-wrapper { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap: 10px; width: 100%; }
     
-    /* 調整標題大小，配合手機寬度 */
-    .system-title { font-size: clamp(18px, 4vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 0.5px; color: #4A6B82 !important; margin: 0 !important; text-align: left !important; }
+    .system-title { font-size: clamp(18px, 3.5vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 0.5px; color: #4A6B82 !important; margin: 0 !important; text-align: left !important; }
     
-    /* 改良版的膠囊按鈕式連結，靠左對齊 */
-    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(11px, 2vw, 14px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 4px 12px; border-radius: 16px; margin-top: 6px; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    /* 縮小手冊按鈕字體、取消上方 margin，使其與標題完美貼齊 */
+    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(11px, 1.2vw, 13px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 4px 10px; border-radius: 16px; margin: 0; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); white-space: nowrap; }
     .manual-link-btn:hover { background-color: #bae6fd; color: #0c4a6e !important; transform: translateY(-1px); box-shadow: 0 3px 5px rgba(0,0,0,0.1); }
 
     .map-sub-title { font-size: clamp(16px, 2.4vw, 20px) !important; line-height: 1.3 !important; font-weight: 800 !important; letter-spacing: 0.8px; color: #4A6B82 !important; text-align: center !important; display: block !important; width: 100%; margin-top: 0px !important; margin-bottom: 6px !important; }
@@ -155,7 +153,7 @@ def get_theme_css(is_light: bool) -> str:
 def render_top_logo() -> str:
     import os, base64
     
-    manual_link = '<div style="color:#ef4444; font-size:12px; font-weight:bold; margin-top:6px;">⚠️ 尚未偵測到手冊檔案 (請確認 GitHub 目錄下有包含「手冊」二字的 pdf 檔)</div>'
+    manual_link = '<div style="color:#ef4444; font-size:12px; font-weight:bold; margin-top:6px;">⚠️ 尚未偵測到手冊檔案</div>'
     
     try:
         for f in os.listdir('.'):
