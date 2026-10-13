@@ -102,18 +102,20 @@ def get_theme_css(is_light: bool) -> str:
     
     .block-container { max-width: 100% !important; width: 100% !important; padding-top: clamp(1rem, 2.5vh, 2.5rem) !important; padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important; padding-left: clamp(10px, 2.5vw, 32px) !important; padding-right: clamp(10px, 2.5vw, 32px) !important; margin: 0 auto !important; }
     
-    /* ===== 全新升級：頂部標題與 3D LOGO 排版 ===== */
-    .system-header-box { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; gap: 8px !important; margin-top: 0px !important; margin-bottom: 20px !important; width: 100% !important; text-align: center !important; }
+    /* ===== 重新設計：水平佈局，節省垂直空間 ===== */
+    .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 12px !important; margin-top: 0px !important; margin-bottom: 20px !important; width: 100% !important; }
     
-    /* 將 3D LOGO 大幅放大，使其更具視覺張力 */
-    .app-top-logo { width: clamp(80px, 14vw, 120px) !important; height: auto !important; margin-bottom: 2px !important; flex-shrink: 0 !important; filter: drop-shadow(0 4px 12px rgba(56, 189, 248, 0.35)) !important; }
+    /* 調整 3D LOGO 大小，配合水平排列 */
+    .app-top-logo { width: clamp(50px, 12vw, 80px) !important; height: auto !important; margin-bottom: 0px !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.3)) !important; }
     
-    /* 標題與手冊連結的排版 */
-    .title-wrapper { display:flex; flex-direction:column; align-items:center; justify-content:center; width: 100%; }
-    .system-title { font-size: clamp(22px, 3.2vw, 32px) !important; line-height: 1.3 !important; font-weight: 900 !important; letter-spacing: 1.5px; color: #4A6B82 !important; margin: 0 !important; text-align: center !important; }
+    /* 標題與手冊連結的排版，靠左對齊 */
+    .title-wrapper { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; }
     
-    /* 改良版的膠囊按鈕式連結，置中對齊 */
-    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(13px, 1.6vw, 15px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 6px 18px; border-radius: 20px; margin-top: 10px; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    /* 調整標題大小，配合手機寬度 */
+    .system-title { font-size: clamp(18px, 4vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 0.5px; color: #4A6B82 !important; margin: 0 !important; text-align: left !important; }
+    
+    /* 改良版的膠囊按鈕式連結，靠左對齊 */
+    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(11px, 2vw, 14px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 4px 12px; border-radius: 16px; margin-top: 6px; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
     .manual-link-btn:hover { background-color: #bae6fd; color: #0c4a6e !important; transform: translateY(-1px); box-shadow: 0 3px 5px rgba(0,0,0,0.1); }
 
     .map-sub-title { font-size: clamp(16px, 2.4vw, 20px) !important; line-height: 1.3 !important; font-weight: 800 !important; letter-spacing: 0.8px; color: #4A6B82 !important; text-align: center !important; display: block !important; width: 100%; margin-top: 0px !important; margin-bottom: 6px !important; }
@@ -145,9 +147,6 @@ def get_theme_css(is_light: bool) -> str:
     .app-official-text { font-size: clamp(11.5px, 3.2vw, 17px) !important; font-weight: 900 !important; color: var(--footer-text) !important; white-space: nowrap !important; letter-spacing: 0px !important; }
     .app-official-source { font-size: 13px !important; font-weight: 600 !important; color: var(--text-muted) !important; line-height: 1.6 !important; text-align: center !important; }
     .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; font-weight: 700 !important; margin-left: 4px !important; }
-
-    .pwa-download-btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 44px; background-color: #4A6B82; color: #ffffff !important; font-size: 16px; font-weight: 800; border-radius: 8px; text-decoration: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 8px; }
-    .pwa-download-btn:hover { background-color: #3E5C76; }
 </style>
 """
     style_part = css_template.replace("__THEME_VARS__", theme_vars)
@@ -164,7 +163,7 @@ def render_top_logo() -> str:
                 with open(f, "rb") as pdf_file:
                     b64_pdf = base64.b64encode(pdf_file.read()).decode()
                 href = f"data:application/pdf;base64,{b64_pdf}"
-                manual_link = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 下載操作與養護巡查作業教學手冊</a>'
+                manual_link = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 操作與養護巡查作業教學手冊</a>'
                 break
     except Exception as e:
         manual_link = f'<div style="color:#ef4444; font-size:12px; margin-top:6px;">⚠️ 手冊讀取失敗: {e}</div>'
