@@ -29,7 +29,12 @@ if not os.path.exists(config_path) or open(config_path, "r", encoding="utf-8").r
     with open(config_path, "w", encoding="utf-8") as f:
         f.write(config_content)
 
+# 強制重新載入 style 模組，避免快取問題
+import importlib
+import style
+importlib.reload(style)
 from style import get_theme_css, render_footer, render_top_logo
+
 from inspection_schema import INSPECTION_TEMPLATES, match_template, generate_doc_report
 
 st.set_page_config(page_title="南澳邊坡全生命週期資料庫", page_icon="⛰️", layout="wide", initial_sidebar_state="collapsed")
@@ -52,6 +57,7 @@ with col_top_theme:
         st.session_state.theme_mode = selected_theme
         st.rerun()
 
+# --- 這裡呼叫 style.py 的標題與手冊渲染 ---
 st.markdown(render_top_logo(), unsafe_allow_html=True)
 
 tabs = ["📋 邊坡清冊", "📊 定量定性", "🗺️ 地圖定位", "🔥 災害斑點", "📝 養護巡查"]
@@ -114,14 +120,11 @@ def load_kmz():
 
 @st.cache_data
 def load_mileages():
-    # ★★★ 全新升級：全台灣省道里程座標 CSV 高效讀取引擎 ★★★
     target_file = "省道里程坐標(里程牌標誌).csv"
     if os.path.exists(target_file):
         try:
-            # 採用 Big5-HKSCS 解析政府圖資編碼
             df_csv = pd.read_csv(target_file, encoding='big5hkscs')
             df_m = pd.DataFrame()
-            # 正規化路線名稱 (例如：台1 -> 台1線)
             df_m['Route'] = df_csv['公路編號'].astype(str) + '線'
             df_m['lat'] = df_csv['坐標-N-WGS84']
             df_m['lon'] = df_csv['坐標-E-WGS84']
