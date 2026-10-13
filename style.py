@@ -36,7 +36,6 @@ def get_theme_css(is_light: bool) -> str:
             --link-color: #60a5fa;
         """
 
-    # 開場動畫：深邃黑底、白字與動態描繪，加入 transform-box 確保各種瀏覽器正常運作
     splash_overlay_html = (
         '<div id="geo-splash-overlay">'
         '<div class="geo-splash-center">'
@@ -105,7 +104,13 @@ def get_theme_css(is_light: bool) -> str:
     
     .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: clamp(8px, 1.2vw, 14px) !important; margin-top: 2px !important; margin-bottom: 12px !important; width: 100% !important; }
     .app-top-logo { width: clamp(38px, 4.2vw, 52px) !important; height: auto !important; margin-bottom: 0px !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.25)) !important; }
-    .system-title { font-size: clamp(20px, 2.8vw, 28px) !important; line-height: 1.3 !important; font-weight: 900 !important; letter-spacing: 1.2px; color: #4A6B82 !important; text-align: left !important; display: inline-block !important; margin: 0 !important; }
+    
+    /* 標題與手冊連結的排版 */
+    .title-wrapper { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; }
+    .system-title { font-size: clamp(18px, 2.5vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 1px; color: #4A6B82 !important; margin: 0 !important; }
+    .manual-link { font-size: clamp(12px, 1.6vw, 15px) !important; font-weight: 700 !important; color: #0284c7 !important; text-decoration: none !important; margin-top: 4px; display:inline-block; transition: all 0.2s ease; }
+    .manual-link:hover { color: #0369a1 !important; text-decoration: underline !important; }
+
     .map-sub-title { font-size: clamp(16px, 2.4vw, 20px) !important; line-height: 1.3 !important; font-weight: 800 !important; letter-spacing: 0.8px; color: #4A6B82 !important; text-align: center !important; display: block !important; width: 100%; margin-top: 0px !important; margin-bottom: 6px !important; }
 
     button p { font-size: 16px !important; }
@@ -136,7 +141,6 @@ def get_theme_css(is_light: bool) -> str:
     .app-official-source { font-size: 13px !important; font-weight: 600 !important; color: var(--text-muted) !important; line-height: 1.6 !important; text-align: center !important; }
     .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; font-weight: 700 !important; margin-left: 4px !important; }
 
-    /* 客製化下載按鈕防 PWA 卡死 */
     .pwa-download-btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 44px; background-color: #4A6B82; color: #ffffff !important; font-size: 16px; font-weight: 800; border-radius: 8px; text-decoration: none !important; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 8px; }
     .pwa-download-btn:hover { background-color: #3E5C76; }
 </style>
@@ -145,7 +149,20 @@ def get_theme_css(is_light: bool) -> str:
     return splash_overlay_html + style_part
 
 def render_top_logo() -> str:
-    return """
+    # 判斷手冊檔案是否存在，存在的話就掛上超連結
+    manual_link = ""
+    manual_file = "南澳邊坡全生命週期資料庫系統_操作與養護巡查作業教學手冊-v3.pdf"
+    if os.path.exists(manual_file):
+        # 讀取檔案內容轉為 Base64 (解決 PWA 無法直接存取本地檔案的問題)
+        try:
+            with open(manual_file, "rb") as f:
+                b64_pdf = base64.b64encode(f.read()).decode()
+            href = f"data:application/pdf;base64,{b64_pdf}"
+            manual_link = f'<a href="{href}" download="{manual_file}" target="_blank" class="manual-link">📘 操作與養護巡查作業教學手冊</a>'
+        except Exception:
+            pass
+
+    return f"""
     <div class="system-header-box notranslate" translate="no">
       <svg class="app-top-logo" viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
         <defs>
@@ -165,7 +182,10 @@ def render_top_logo() -> str:
           <path d="M100 144 Q190 194 280 140" stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round"/>
         </g>
       </svg>
-      <div class="system-title">南澳邊坡全生命週期資料庫</div>
+      <div class="title-wrapper">
+        <div class="system-title">南澳邊坡全生命週期資料庫</div>
+        {manual_link}
+      </div>
     </div>
     """
 
