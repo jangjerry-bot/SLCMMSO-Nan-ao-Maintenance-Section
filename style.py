@@ -39,34 +39,42 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     splash_overlay_html = (
         '<div id="geo-splash-overlay">'
         '<div class="geo-splash-center">'
-        '<svg class="geo-splash-svg" viewBox="0 0 340 220" fill="none" xmlns="http://www.w3.org/2000/svg">'
+        '<div class="geo-hud-badge">GEO-NUMERICAL ENGINE // SEEP3D &amp; SLOPE/W</div>'
+        '<svg class="geo-splash-svg" viewBox="0 0 360 240" fill="none" xmlns="http://www.w3.org/2000/svg">'
         '<defs>'
-        '<linearGradient id="splashGradBase" x1="50" y1="115" x2="290" y2="195" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#52796f" stop-opacity="0.95"/><stop offset="1" stop-color="#2d4a43" stop-opacity="0.95"/>'
+        '<linearGradient id="spBase" x1="50" y1="125" x2="310" y2="205" gradientUnits="userSpaceOnUse">'
+        '<stop stop-color="#3f6259"/><stop offset="1" stop-color="#1b2e29"/>'
         '</linearGradient>'
-        '<linearGradient id="splashGradPrism" x1="150" y1="55" x2="170" y2="168" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#4A6B82" stop-opacity="0.9"/><stop offset="1" stop-color="#1e293b" stop-opacity="0.95"/>'
+        '<linearGradient id="spPrism" x1="150" y1="55" x2="180" y2="178" gradientUnits="userSpaceOnUse">'
+        '<stop stop-color="#4A6B82" stop-opacity="0.92"/><stop offset="1" stop-color="#1e293b" stop-opacity="0.98"/>'
         '</linearGradient>'
-        '<linearGradient id="splashGradSeepage" x1="95" y1="75" x2="235" y2="142" gradientUnits="userSpaceOnUse">'
-        '<stop stop-color="#38bdf8" stop-opacity="0.85"/><stop offset="1" stop-color="#0284c7" stop-opacity="0.95"/>'
+        '<linearGradient id="spWater" x1="95" y1="75" x2="245" y2="152" gradientUnits="userSpaceOnUse">'
+        '<stop stop-color="#38bdf8" stop-opacity="0.9"/><stop offset="1" stop-color="#0284c7" stop-opacity="0.6"/>'
         '</linearGradient>'
+        '<filter id="glowRed" x="-20%" y="-20%" width="140%" height="140%">'
+        '<feGaussianBlur stdDeviation="4" result="blur"/><feComposite in="SourceGraphic" in2="blur" operator="over"/>'
+        '</filter>'
         '</defs>'
-        '<g class="geo-mesh-grid" stroke="#64748b" stroke-width="0.9" stroke-opacity="0.45">'
-        '<path d="M30 150 L170 212 L310 150 L170 88 Z" fill="rgba(241, 245, 249, 0.25)"/>'
-        '<path d="M65 134 L205 197"/><path d="M100 119 L240 181"/><path d="M135 103 L275 166"/>'
-        '<path d="M100 181 L240 119"/><path d="M65 166 L205 103"/><path d="M135 197 L275 134"/>'
+        '<g class="geo-mesh-grid" stroke="#475569" stroke-width="0.8" stroke-opacity="0.5">'
+        '<path d="M30 160 L180 225 L330 160 L180 95 Z" fill="rgba(15, 23, 42, 0.6)"/>'
+        '<path d="M67 144 L217 209"/><path d="M105 127 L255 192"/><path d="M142 111 L292 176"/>'
+        '<path d="M105 192 L255 127"/><path d="M67 176 L217 111"/><path d="M142 209 L292 144"/>'
         '</g>'
-        '<path class="geo-red-axis" d="M15 156 L325 156" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="4 3" stroke-opacity="0.75"/>'
-        '<path class="geo-base-layer" d="M50 142 L170 195 L290 142 L290 115 L170 168 L50 115 Z" fill="url(#splashGradBase)" stroke="#52796f" stroke-width="1.6"/>'
-        '<path class="geo-slope-prism" d="M50 115 L170 168 L290 115 L245 55 L150 55 L50 115 Z" fill="url(#splashGradPrism)" stroke="#3E5C76" stroke-width="1.8"/>'
-        '<path class="geo-seepage-mass" d="M95 105 Q155 142 225 105 L235 75 Q165 102 135 75 Z" fill="url(#splashGradSeepage)" stroke="#0284c7" stroke-width="2"/>'
-        '<path class="geo-red-crest" d="M150 55 L245 55 L290 115" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/>'
-        '<path class="geo-red-shear" d="M90 102 Q160 138 232 102" stroke="#dc2626" stroke-width="3.2" stroke-linecap="round"/>'
-        '<path class="geo-slip-stream" d="M85 112 Q158 152 235 108" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>'
-        '<path class="geo-slip-stream-sub" d="M110 90 Q160 122 210 90" stroke="#0ea5e9" stroke-width="1.8" stroke-linecap="round"/>'
+        '<g class="geo-rain-lines" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="6 10" stroke-linecap="round" opacity="0.7">'
+        '<line x1="140" y1="15" x2="120" y2="65" /><line x1="185" y1="10" x2="165" y2="60" />'
+        '<line x1="230" y1="15" x2="210" y2="65" /><line x1="270" y1="25" x2="250" y2="75" />'
+        '</g>'
+        '<path class="geo-base-layer" d="M50 152 L180 208 L310 152 L310 122 L180 178 L50 122 Z" fill="url(#spBase)" stroke="#52796f" stroke-width="1.5"/>'
+        '<path class="geo-slope-prism" d="M50 122 L180 178 L310 122 L260 58 L155 58 L50 122 Z" fill="url(#spPrism)" stroke="#64748b" stroke-width="1.5"/>'
+        '<path class="geo-seepage-wave" d="M95 115 Q165 155 240 115 L252 80 Q175 112 140 80 Z" fill="url(#spWater)" stroke="#38bdf8" stroke-width="2"/>'
+        '<path class="geo-flow-arrows" d="M130 100 Q165 128 215 102" stroke="#bae6fd" stroke-width="2" stroke-dasharray="5 5" stroke-linecap="round"/>'
+        '<path class="geo-red-crest" d="M155 58 L260 58 L310 122" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"/>'
+        '<path class="geo-red-shear" filter="url(#glowRed)" d="M88 112 Q170 154 248 110" stroke="#ef4444" stroke-width="4" stroke-linecap="round"/>'
+        '<line class="geo-slice-line" x1="120" y1="50" x2="120" y2="145" stroke="#facc15" stroke-width="1.5" stroke-dasharray="3 3"/>'
         '</svg>'
         '<div class="geo-splash-title">南澳邊坡全生命週期資料庫</div>'
-        '<div class="geo-splash-sub">3D SLOPE LIFECYCLE MANAGEMENT SYSTEM</div>'
+        '<div class="geo-splash-sub">GEOTECHNICAL LIFECYCLE &amp; SPATIAL INTELLIGENCE</div>'
+        '<div class="geo-progress-bar"><div class="geo-progress-fill"></div></div>'
         '</div>'
         '</div>'
     )
@@ -75,24 +83,37 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
 <style>
     :root { __THEME_VARS__ }
 
-    #geo-splash-overlay { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; background: #0b0f19 !important; z-index: 99999999 !important; display: flex !important; justify-content: center !important; align-items: center !important; pointer-events: none !important; animation: splashDismiss 0.6s cubic-bezier(0.4, 0, 0.2, 1) 2.4s forwards !important; }
-    @keyframes splashDismiss { 0% { opacity: 1; visibility: visible; } 99% { opacity: 0; visibility: visible; } 100% { opacity: 0; visibility: hidden; display: none !important; } }
+    #geo-splash-overlay { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; background: radial-gradient(circle at center, #111827 0%, #050811 100%) !important; z-index: 99999999 !important; display: flex !important; justify-content: center !important; align-items: center !important; pointer-events: none !important; animation: splashDismiss 0.6s cubic-bezier(0.4, 0, 0.2, 1) 2.2s forwards !important; }
+    @keyframes splashDismiss { 0% { opacity: 1; transform: scale(1); } 99% { opacity: 0; transform: scale(1.03); } 100% { opacity: 0; visibility: hidden; display: none !important; } }
     .geo-splash-center { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; text-align: center !important; padding: 20px !important; }
-    .geo-splash-svg { width: clamp(260px, 46vw, 380px) !important; height: auto !important; filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.6)) !important; }
-    .geo-splash-title { color: #f8fafc !important; font-size: clamp(20px, 2.8vw, 26px) !important; font-weight: 900 !important; letter-spacing: 2px !important; margin-top: 18px !important; animation: titleFadeIn 0.8s ease-out !important; }
-    .geo-splash-sub { color: #38bdf8 !important; font-size: clamp(10.5px, 1.4vw, 12.5px) !important; font-weight: 700 !important; letter-spacing: 2.4px !important; margin-top: 6px !important; animation: titleFadeIn 1.0s ease-out !important; }
+    .geo-hud-badge { font-family: monospace !important; font-size: 11px !important; color: #38bdf8 !important; background: rgba(56, 189, 248, 0.1) !important; border: 1px solid rgba(56, 189, 248, 0.3) !important; padding: 4px 12px !important; border-radius: 20px !important; letter-spacing: 2px !important; margin-bottom: 10px !important; animation: titleFadeIn 0.5s ease-out !important; }
+    .geo-splash-svg { width: clamp(270px, 48vw, 390px) !important; height: auto !important; filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.7)) !important; }
+    
+    .geo-mesh-grid { animation: meshPop 0.6s ease-out; transform-origin: center; transform-box: fill-box; }
+    .geo-base-layer { animation: modelRise 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-box: fill-box; }
+    .geo-slope-prism { opacity: 0; animation: modelRise 0.6s 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-box: fill-box; }
+    .geo-rain-lines { animation: rainFall 0.8s linear infinite; }
+    .geo-seepage-wave { opacity: 0; animation: waterRise 0.9s 0.3s ease-out forwards, waterPulse 1.5s 1.2s ease-in-out infinite alternate; transform-origin: bottom center; transform-box: fill-box; }
+    .geo-flow-arrows { stroke-dashoffset: 40; animation: flowMove 1.2s linear infinite; }
+    .geo-red-crest { stroke-dasharray: 220; stroke-dashoffset: 220; animation: drawLine 0.8s 0.4s ease-out forwards; }
+    .geo-red-shear { stroke-dasharray: 240; stroke-dashoffset: 240; animation: drawLine 0.9s 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards, shearPulse 0.6s 1.4s ease-in-out infinite alternate; }
+    .geo-slice-line { opacity: 0; animation: sliceScan 1.4s 0.5s ease-in-out forwards; }
+    
+    .geo-splash-title { color: #f8fafc !important; font-size: clamp(21px, 3vw, 28px) !important; font-weight: 900 !important; letter-spacing: 2.5px !important; margin-top: 14px !important; animation: titleFadeIn 0.7s ease-out !important; }
+    .geo-splash-sub { color: #94a3b8 !important; font-size: clamp(10px, 1.3vw, 12px) !important; font-weight: 700 !important; letter-spacing: 2.2px !important; margin-top: 6px !important; animation: titleFadeIn 0.9s ease-out !important; }
+    .geo-progress-bar { width: 180px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 16px; overflow: hidden; }
+    .geo-progress-fill { width: 0%; height: 100%; background: linear-gradient(90deg, #38bdf8, #ef4444); animation: loadProgress 2.1s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
 
-    .geo-mesh-grid { animation: meshPop 0.8s ease-out; transform-origin: center; transform-box: fill-box; }
-    .geo-red-axis { animation: meshPop 0.6s ease-out; transform-origin: center; transform-box: fill-box; }
-    .geo-base-layer, .geo-slope-prism, .geo-seepage-mass { animation: modelRise 0.8s cubic-bezier(0.16, 1, 0.3, 1); transform-box: fill-box; }
-    .geo-red-crest { stroke-dasharray: 200; stroke-dashoffset: 200; animation: drawLine 1.1s 0.1s ease-in-out forwards; filter: drop-shadow(0 0 6px #ef4444); }
-    .geo-red-shear { stroke-dasharray: 220; stroke-dashoffset: 220; animation: drawLine 1.1s 0.2s ease-in-out forwards; filter: drop-shadow(0 0 8px #dc2626); }
-    .geo-slip-stream { stroke-dasharray: 260; stroke-dashoffset: 260; animation: drawLine 1.2s 0.3s ease-in-out forwards; filter: drop-shadow(0 0 7px #38bdf8); }
-    .geo-slip-stream-sub { stroke-dasharray: 180; stroke-dashoffset: 180; animation: drawLine 1.0s 0.4s ease-in-out forwards; filter: drop-shadow(0 0 5px #0ea5e9); }
-
-    @keyframes drawLine { to { stroke-dashoffset: 0; } }
-    @keyframes modelRise { from { transform: translateY(12px); opacity: 0.2; } to { transform: translateY(0); opacity: 1; } }
     @keyframes meshPop { from { transform: scale(0.92); opacity: 0.1; } to { transform: scale(1); opacity: 1; } }
+    @keyframes modelRise { from { transform: translateY(22px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes rainFall { from { transform: translate(-8px, -12px); } to { transform: translate(8px, 12px); } }
+    @keyframes waterRise { from { transform: scaleY(0.2) translateY(15px); opacity: 0; } to { transform: scaleY(1) translateY(0); opacity: 0.95; } }
+    @keyframes waterPulse { from { transform: scaleY(1); } to { transform: scaleY(1.06); } }
+    @keyframes flowMove { to { stroke-dashoffset: 0; } }
+    @keyframes drawLine { to { stroke-dashoffset: 0; } }
+    @keyframes shearPulse { from { stroke-width: 3.5; filter: drop-shadow(0 0 4px #ef4444); } to { stroke-width: 5.5; filter: drop-shadow(0 0 14px #ff0000); } }
+    @keyframes sliceScan { 0% { opacity: 0; transform: translateX(0); } 20% { opacity: 0.9; } 80% { opacity: 0.9; } 100% { opacity: 0; transform: translateX(115px); } }
+    @keyframes loadProgress { 0% { width: 0%; } 100% { width: 100%; } }
     @keyframes titleFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
     html, body, [class*="css"] { color: var(--text-main) !important; }
@@ -105,11 +126,9 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 12px !important; margin-top: 0px !important; margin-bottom: 20px !important; width: 100% !important; }
     .app-top-logo { width: clamp(50px, 12vw, 80px) !important; height: auto !important; margin-bottom: 0px !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.3)) !important; }
     
-    /* 標題與雙手冊按鈕採水平彈性排列，空間不足時自動換行對齊 */
     .title-wrapper { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; width: 100%; }
     .system-title { font-size: clamp(18px, 3.2vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 0.5px; color: #4A6B82 !important; margin: 0 4px 0 0 !important; text-align: left !important; white-space: nowrap; }
     
-    /* 膠囊按鈕樣式 */
     .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(11px, 1.15vw, 13px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 4px 10px; border-radius: 16px; margin: 0; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); white-space: nowrap; }
     .manual-link-btn:hover { background-color: #bae6fd; color: #0c4a6e !important; transform: translateY(-1px); box-shadow: 0 3px 5px rgba(0,0,0,0.1); }
 
@@ -126,8 +145,10 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     .detail-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--card-border) !important; font-size: clamp(14px, 1.7vw, 15px); line-height: 1.45; color: var(--text-main) !important; }
     .detail-label { color: var(--text-muted) !important; font-weight: 600; width: 40%; }
     .detail-value { font-weight: 600; width: 60%; text-align: right; word-break: break-all; color: var(--text-main) !important; }
+    
+    /* 支援 115年新制 C+ 級徽章色碼 (.badge-Cplus) */
     .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 14px; font-weight: 800; color: #ffffff !important; }
-    .badge-A { background-color: #c05646; } .badge-B { background-color: #d9822b; } .badge-C { background-color: #4A6B82; } .badge-D { background-color: #52796f; } .badge-其他 { background-color: #64748b; }
+    .badge-A { background-color: #c05646; } .badge-B { background-color: #d9822b; } .badge-Cplus { background-color: #7c3aed; } .badge-C { background-color: #4A6B82; } .badge-D { background-color: #52796f; } .badge-其他 { background-color: #64748b; }
 
     .embed-map-box { border-radius: 12px; overflow: hidden; border: 1px solid var(--card-border) !important; margin: 12px 0; }
     button[kind="secondary"] { background-color: var(--btn-sec-bg) !important; color: var(--btn-sec-text) !important; border: 1px solid var(--btn-sec-border) !important; font-weight: 800 !important; }
@@ -154,7 +175,6 @@ def render_top_logo() -> str:
     try:
         pdf_files = [f for f in os.listdir('.') if f.lower().endswith('.pdf')]
         
-        # 1. 檢索「操作與養護巡查作業教學手冊」
         for f in pdf_files:
             if '教學手冊' in f or ('手冊' in f and '懶人包' not in f and '路巡' not in f):
                 with open(f, "rb") as pdf_file:
@@ -163,7 +183,6 @@ def render_top_logo() -> str:
                 manual_link_1 = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 操作與養護巡查作業教學手冊</a>'
                 break
 
-        # 2. 檢索「南澳段路巡邊坡巡檢機制(115年最新修訂)」
         for f in pdf_files:
             if '懶人包' in f or '路巡' in f or '巡檢' in f:
                 with open(f, "rb") as pdf_file:
