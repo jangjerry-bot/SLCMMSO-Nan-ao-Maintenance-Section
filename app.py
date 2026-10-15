@@ -44,13 +44,19 @@ if "bottom_tab" not in st.session_state: st.session_state.bottom_tab = "📋 邊
 if "selected_slope_id" not in st.session_state: st.session_state.selected_slope_id = None
 if "active_grade_detail" not in st.session_state: st.session_state.active_grade_detail = None
 if "patrol_draft" not in st.session_state: st.session_state.patrol_draft = {}
+if "priority_mode" not in st.session_state: st.session_state.priority_mode = False
 
 is_light = (st.session_state.theme_mode == "☀️ 淺色白底")
 plotly_font_color = "#0f172a" if is_light else "#f8fafc"
 
-st.markdown(get_theme_css(is_light), unsafe_allow_html=True)
+# 單次播放狀態鎖：防止切換主題或篩選時重複播放開場動畫
+if "splash_shown" not in st.session_state:
+    st.markdown(get_theme_css(is_light, show_splash=True), unsafe_allow_html=True)
+    st.session_state.splash_shown = True
+else:
+    st.markdown(get_theme_css(is_light, show_splash=False), unsafe_allow_html=True)
 
-top_col1, top_col2, top_col3 = st.columns([1.5, 6, 2.5])
+top_col1, top_col2, top_col3 = st.columns([1.2, 6.3, 2.5])
 with top_col2:
     st.markdown(render_top_logo(), unsafe_allow_html=True)
 with top_col3:
@@ -88,7 +94,7 @@ def load_data():
     df = pd.read_excel(DATA_FILE)
     df['起點緯度'] = pd.to_numeric(df['起點緯度'], errors='coerce')
     df['起點經度'] = pd.to_numeric(df['起點經度'], errors='coerce')
-    df['定性分級'] = df['定性分級'].fillna('其他').astype(str).str.strip()
+    df['定性分級'] = df['定性分級'].fillna('其他').astype(str).str.strip().str.upper()
     df['定量分級'] = df['定量分級'].apply(normalize_quant) if '定量分級' in df.columns else "未施作"
     return df
 
@@ -212,13 +218,12 @@ def create_photos_zip(photos, prefix_name):
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
         for i, photo_data in enumerate(photos):
-            # 支援 Tuple (img_bytes, desc) 提取機制
             p_bytes = photo_data[0] if isinstance(photo_data, tuple) else photo_data
             zip_file.writestr(f"{prefix_name}-{i+1}.jpg", p_bytes)
     return zip_buffer.getvalue()
 
 # ==============================================================================
-# 頁面 1：邊坡清冊
+# 頁面 1：邊坡清冊 (支援 115年 C+ 分級與 震度4級優先關注邊坡快篩)
 # ==============================================================================
 if st.session_state.bottom_tab == "📋 邊坡清冊":
     if st.session_state.selected_slope_id is not None:
@@ -230,10 +235,11 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
         if not matched.empty:
             row = matched.iloc[0]
             q_grade = str(row['定性分級'])
+            q_grade_cls = q_grade.replace("+", "plus")
             card_top = f"""<div class='app-card notranslate' translate='no'>
 <div style='display:flex; justify-content:space-between; align-items:center;'>
 <span class='detail-green-text'>📍 {row['路線']} {row['里程樁號(起)']}</span>
-<span class='badge badge-{q_grade}'>{q_grade} 級</span>
+<span class='badge badge-{q_grade_cls}'>{q_grade} 級</span>
 </div>
 <div style='font-family:monospace; font-size:13.5px; color:var(--text-muted); margin-top:3px;'>口卡：{row['口卡編號']}</div>
 <div style='font-size:15px; font-weight:800; color:#4A6B82; margin-top:4px;'>構造物：{row.get('邊坡構造物', '自然邊坡')}</div>
@@ -268,7 +274,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 ("邊坡構造物", str(row.get('邊坡構造物', '自然邊坡'))),
                 ("邊坡方向", str(row.get('邊坡方向', '無'))),
                 ("坡高 / 坡度 / 面寬", f"{row.get('坡高', '')}m / {row.get('坡度', '')}° / {row.get('邊坡面寬', '')}m"),
-                ("定性 / 定量分級", f"{q_grade}級 / {row.get('定量分級', '未施作')}"),
+                ("定性 / RHRS定量分級", f"{q_grade}級 / {row.get('定量分級', '未施作')}"),
                 ("災害歷史", str(row.get('災害歷史', '無'))),
                 ("附近地名", str(row.get('附近地名', '無'))),
             ]
@@ -288,15 +294,30 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
             route_list = ["全部路線"] + list(df['路線'].dropna().unique())
             route_filter = st.selectbox("路線篩選", route_list)
         with col_f2:
-            qual_filter = st.selectbox("分級篩選", ["全部分級", "A", "B", "C", "D", "其他"])
+            qual_filter = st.selectbox("分級篩選 (含115年新制 C+ 級)", ["全部分級", "A", "B", "C+", "C", "D", "其他"])
 
-        search_kw = st.text_input("🔍 搜尋里程、卡號、地名或構造物設施", placeholder="例如: 8k+600、隘丁、噴凝土、岩錨、北上")
-        search_kw_clean = search_kw.strip() if search_kw else ""
+        col_s1, col_s2 = st.columns([0.65, 0.35])
+        with col_s1:
+            search_kw = st.text_input("🔍 搜尋里程、卡號、地名或構造物設施", placeholder="例如: 8k+600、隘丁、噴凝土、岩錨、北上")
+            search_kw_clean = search_kw.strip() if search_kw else ""
+        with col_s2:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            priority_toggle = st.checkbox("🚨 震度4級：優先關注邊坡快篩", value=st.session_state.priority_mode, help="依據附錄3規定：篩選 A、B 級且具 RHRS 定量評估之優先關注邊坡")
+            if priority_toggle != st.session_state.priority_mode:
+                st.session_state.priority_mode = priority_toggle
+                st.rerun()
 
         f_df = df.copy()
         if route_filter != "全部路線": f_df = f_df[f_df['路線'] == route_filter]
         if qual_filter != "全部分級": f_df = f_df[f_df['定性分級'] == qual_filter]
-            
+        
+        if st.session_state.priority_mode:
+            # 優先關注邊坡：A、B級邊坡經RHRS細部定量評估者
+            f_df = f_df[f_df['定性分級'].isin(["A", "B"]) & (f_df['定量分級'] != "未施作")]
+            st.warning("🚨 **【震度4級以上／防災特別巡查應變模式已啟動】**\n\n"
+                       "- **篩選邏輯**：僅列出轄內 **A、B 級且已完成 RHRS 定量評估** 之優先關注邊坡。\n"
+                       "- **作業規定**：震度達 4 級立即巡查震區內優先關注邊坡；震度達 5 弱級以上立即巡查全線構造物及邊坡；3小時雨量達120mm以上應於2日內實施特別巡查。")
+
         if search_kw_clean:
             match_cond = (
                 f_df['口卡編號'].astype(str).str.contains(search_kw_clean, case=False, na=False) |
@@ -313,10 +334,11 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
             f_df = f_df[match_cond]
 
         q_counts = f_df['定性分級'].value_counts()
-        st.caption(f"符合條件邊坡：**{len(f_df)}** 處（總資產：{len(df)} 處） 點擊下方各級按鈕查看對應樁號：")
+        st.caption(f"符合條件邊坡：**{len(f_df)}** 處（總資產：{len(df)} 處） 點擊下方各級按鈕展開對應樁號清冊：")
 
-        b_cols = st.columns(5)
-        for idx, g in enumerate(["A", "B", "C", "D", "其他"]):
+        grade_categories = ["A", "B", "C+", "C", "D", "其他"]
+        b_cols = st.columns(6)
+        for idx, g in enumerate(grade_categories):
             with b_cols[idx]:
                 if st.button(f"{g}級 ({q_counts.get(g, 0)})", key=f"badge_btn_{g}", use_container_width=True):
                     st.session_state.active_grade_detail = g if st.session_state.active_grade_detail != g else None
@@ -327,11 +349,14 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
             g_sub_df = f_df[f_df['定性分級'] == sel_g]
             with st.container(border=True):
                 st.markdown(f"**📌【{sel_g} 級】邊坡樁號清冊（共 {len(g_sub_df)} 處）：**")
+                if sel_g == "C+":
+                    st.caption("ℹ️ *115年5月新制：C+ 級係指經復建完成，但具遠端致災因素（需持續關注上/下邊坡、曲流/浪襲攻擊面、坡頂人為開發、明隧道上方邊坡）之列管邊坡。*")
                 g_cols = st.columns(2)
                 for idx, (_, g_row) in enumerate(g_sub_df.iterrows()):
                     with g_cols[idx % 2]:
                         struct_info = f" ({str(g_row.get('邊坡構造物', ''))[:10]})" if pd.notna(g_row.get('邊坡構造物')) else ""
-                        btn_txt = f"📍 {g_row['路線']} {g_row['里程樁號(起)']}{struct_info}"
+                        rhrs_tag = f" [RHRS:{g_row['定量分級']}]" if g_row.get('定量分級', '未施作') != '未施作' else ""
+                        btn_txt = f"📍 {g_row['路線']} {g_row['里程樁號(起)']}{struct_info}{rhrs_tag}"
                         if st.button(btn_txt, key=f"quick_pick_{g_row['口卡編號']}", use_container_width=True):
                             st.session_state.selected_slope_id = g_row['口卡編號']
                             st.rerun()
@@ -341,16 +366,17 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
         for r_name in f_df['路線'].dropna().unique():
             sub_df = f_df[f_df['路線'] == r_name]
             total_sub = len(sub_df)
-            with st.expander(f"🛣️ **{r_name}**（共 {total_sub} 處）", expanded=False):
+            with st.expander(f"🛣️ **{r_name}**（共 {total_sub} 處）", expanded=st.session_state.priority_mode):
                 show_all = False
-                if total_sub > 10:
+                if total_sub > 10 and not st.session_state.priority_mode:
                     show_all = st.checkbox(f"展開全部 {total_sub} 筆（預設前 10 筆）", key=f"chk_{r_name}")
-                display_df = sub_df if show_all else sub_df.head(10)
+                display_df = sub_df if (show_all or st.session_state.priority_mode) else sub_df.head(10)
                 for _, r in display_df.iterrows():
                     grade = str(r['定性分級'])
+                    quant_g = r.get('定量分級', '未施作')
                     with st.container(border=True):
                         st.markdown(f"<span class='route-green-text'>📍 {r['路線']} {r['里程樁號(起)']}</span>", unsafe_allow_html=True)
-                        if st.button(f"進入口卡檢視 [{grade}級]", key=f"pick_{r['口卡編號']}", use_container_width=True):
+                        if st.button(f"進入口卡檢視 [{grade}級 | RHRS: {quant_g}]", key=f"pick_{r['口卡編號']}", use_container_width=True):
                             st.session_state.selected_slope_id = r['口卡編號']
                             st.rerun()
                         st.caption(f"卡號：`{r['口卡編號']}` ｜ 構造物：`{r.get('邊坡構造物', '自然邊坡')}`")
@@ -362,19 +388,24 @@ elif st.session_state.bottom_tab == "📊 定量定性":
     st.markdown("<div class='system-title notranslate' translate='no' style='text-align:center;'>邊坡定量定性分級統計</div>", unsafe_allow_html=True)
     chart_type = st.radio("📈 圖表呈現模式", ["長條圖 (Bar Chart)", "圓餅圖 (Pie Chart)"], horizontal=True, index=0)
 
-    st.markdown("### 1. 定性分級統計")
+    st.markdown("### 1. 定性分級統計（含115年修訂 C+ 級）")
     qual_df_raw = df.copy()
     qual_df_raw['定性分級'] = qual_df_raw['定性分級'].replace({"其他": "其他(已廢線路段)"})
-    qual_order = ["A", "B", "C", "D", "其他(已廢線路段)"]
+    qual_order = ["A", "B", "C+", "C", "D", "其他(已廢線路段)"]
     c_counts = qual_df_raw['定性分級'].value_counts()
     
     qual_df = pd.DataFrame({
         "分級": qual_order, "數量": [c_counts.get(c, 0) for c in qual_order],
         "圖例標籤": [f"{c} ({c_counts.get(c, 0)})" for c in qual_order]
     })
-    qual_color = {f"A ({c_counts.get('A', 0)})": "#c05646", f"B ({c_counts.get('B', 0)})": "#d9822b", 
-                  f"C ({c_counts.get('C', 0)})": "#4A6B82", f"D ({c_counts.get('D', 0)})": "#52796f", 
-                  f"其他(已廢線路段) ({c_counts.get('其他(已廢線路段)', 0)})": "#64748b"}
+    qual_color = {
+        f"A ({c_counts.get('A', 0)})": "#c05646",
+        f"B ({c_counts.get('B', 0)})": "#d9822b",
+        f"C+ ({c_counts.get('C+', 0)})": "#7c3aed",
+        f"C ({c_counts.get('C', 0)})": "#4A6B82",
+        f"D ({c_counts.get('D', 0)})": "#52796f",
+        f"其他(已廢線路段) ({c_counts.get('其他(已廢線路段)', 0)})": "#64748b"
+    }
 
     if "圓餅圖" in chart_type:
         fig_qual = px.pie(qual_df, values='數量', names='圖例標籤', hole=0.45, color='圖例標籤', color_discrete_map=qual_color, category_orders={"圖例標籤": qual_df['圖例標籤'].tolist()})
@@ -428,7 +459,7 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
         
         folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Earth", name="🛰️ 衛星空照圖").add_to(m_loc)
         folium.TileLayer(tiles="OpenStreetMap", name="🗺️ 標準電子地圖").add_to(m_loc)
-        cmap = {"A": "#c05646", "B": "#d9822b", "C": "#4A6B82", "D": "#52796f", "其他": "#64748b"}
+        cmap = {"A": "#c05646", "B": "#d9822b", "C+": "#7c3aed", "C": "#4A6B82", "D": "#52796f", "其他": "#64748b"}
         for _, r in valid_pts.iterrows():
             g = str(r['定性分級'])
             p_lat, p_lon = r['起點緯度'], r['起點經度']
@@ -439,7 +470,7 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
             popup_html = f"""<div style='font-size:14.5px; line-height:1.6; min-width:250px; white-space:nowrap;'>
 <b style='font-size:16px; color:#0f172a;'>{r['路線']} {r['里程樁號(起)']}</b><br/>
 <b>卡號：</b>{r['口卡編號']}<br/>
-<b>分級：</b><span style='color:{cmap.get(g, "#64748b")}; font-weight:bold;'>{g} 級</span><br/>
+<b>分級：</b><span style='color:{cmap.get(g, "#64748b")}; font-weight:bold;'>{g} 級</span>（RHRS: {r.get('定量分級', '未施作')}）<br/>
 <b>構造：</b>{r.get('邊坡構造物', '自然邊坡')}<br/>
 <div style='margin-top:10px;'>
   <a href='{nav_url}' target='_blank' style='display:inline-block; padding:6px 12px; background:#4A6B82; color:white; border-radius:6px; text-decoration:none; font-weight:bold;'>🧭 導航</a>
@@ -567,7 +598,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
     all_item_photos = []
     photo_lat, photo_lon = None, None
 
-    # ===== 核心修正：將資料輸入區移至照片上傳之前，確保動態擷取說明欄位文字 =====
     for idx, (iname, iact) in enumerate(current_tpl["items"]):
         st.markdown(f"**{iname}**")
         ci1, ci2 = st.columns([0.55, 0.45])
@@ -583,8 +613,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
             if up_files:
                 for f in up_files:
                     img_bytes = f.getvalue()
-                    
-                    # 智慧連動照片說明文字
                     if "×" in res_val and desc_val:
                         p_desc = f"【{iname}】異常說明：{desc_val}"
                     elif "×" in res_val:
@@ -594,16 +622,13 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
                     else:
                         p_desc = f"【{iname}】現況正常"
                         
-                    # 將影像與動態擷取的說明字串打包成 Tuple 存入陣列
                     all_item_photos.append((img_bytes, p_desc))
-                    
                     if photo_lat is None:
                         photo_lat, photo_lon = extract_gps(img_bytes)
                         
         item_results.append((iname, iact, res_val[0], desc_val))
         st.markdown("<hr style='margin: 8px 0; border: none; border-top: 1px dashed var(--card-border);' />", unsafe_allow_html=True)
 
-    # ---------------- 執行空間內插並回填至上方預留空間 ----------------
     mile_text = target_row.get('里程樁號(起)', '')
     gps_info_msg = "ℹ️ 拍下或上傳第一張照片，系統將嘗試抓取 GPS 並內插精密樁號。"
     gps_color = "normal"
@@ -624,7 +649,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
         elif gps_color == "warning": st.warning(gps_info_msg)
         else: st.caption(gps_info_msg)
 
-    # ---------------- 現地備註與署名 ----------------
     st.markdown("#### 三、 現地綜合備註與署名")
     
     date_str = f"{f_date.year - 1911}年{f_date.month:02d}月{f_date.day:02d}日"
@@ -671,7 +695,6 @@ elif st.session_state.bottom_tab == "📝 養護巡查":
 
     act_col1, act_col2, act_col3 = st.columns([1, 1, 1])
     
-    # 內聯按鈕樣式：完美模擬 Streamlit 預設 Secondary 按鈕，並支援深淺色動態切換
     btn_style = (
         "display: flex; align-items: center; justify-content: center; width: 100%; "
         "padding: 0.25rem 0.75rem; min-height: 41px; "

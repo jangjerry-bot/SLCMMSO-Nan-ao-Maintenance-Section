@@ -2,7 +2,7 @@
 import os
 import base64
 
-def get_theme_css(is_light: bool) -> str:
+def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     if is_light:
         theme_vars = """
             --bg-main: #f8fafc;
@@ -100,20 +100,17 @@ def get_theme_css(is_light: bool) -> str:
     [class*="immersive-translate"], .immersive-translate-target-wrapper { display: none !important; height: 0 !important; }
     #MainMenu, footer { visibility: hidden; }
     
-    /* ===== 核心修正：大幅拉開頂部安全邊距 (Padding-top) 解決「削頭」問題 ===== */
     .block-container { max-width: 100% !important; width: 100% !important; padding-top: clamp(3.5rem, 6vh, 4.5rem) !important; padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important; padding-left: clamp(10px, 2.5vw, 32px) !important; padding-right: clamp(10px, 2.5vw, 32px) !important; margin: 0 auto !important; }
     
     .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 12px !important; margin-top: 0px !important; margin-bottom: 20px !important; width: 100% !important; }
-    
     .app-top-logo { width: clamp(50px, 12vw, 80px) !important; height: auto !important; margin-bottom: 0px !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.3)) !important; }
     
-    /* ===== 核心修正：標題與按鈕改為「水平並排 (Row)」 ===== */
-    .title-wrapper { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap: 10px; width: 100%; }
+    /* 標題與雙手冊按鈕採水平彈性排列，空間不足時自動換行對齊 */
+    .title-wrapper { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; width: 100%; }
+    .system-title { font-size: clamp(18px, 3.2vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 0.5px; color: #4A6B82 !important; margin: 0 4px 0 0 !important; text-align: left !important; white-space: nowrap; }
     
-    .system-title { font-size: clamp(18px, 3.5vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 0.5px; color: #4A6B82 !important; margin: 0 !important; text-align: left !important; }
-    
-    /* 縮小手冊按鈕字體、取消上方 margin，使其與標題完美貼齊 */
-    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(11px, 1.2vw, 13px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 4px 10px; border-radius: 16px; margin: 0; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); white-space: nowrap; }
+    /* 膠囊按鈕樣式 */
+    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(11px, 1.15vw, 13px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 4px 10px; border-radius: 16px; margin: 0; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); white-space: nowrap; }
     .manual-link-btn:hover { background-color: #bae6fd; color: #0c4a6e !important; transform: translateY(-1px); box-shadow: 0 3px 5px rgba(0,0,0,0.1); }
 
     .map-sub-title { font-size: clamp(16px, 2.4vw, 20px) !important; line-height: 1.3 !important; font-weight: 800 !important; letter-spacing: 0.8px; color: #4A6B82 !important; text-align: center !important; display: block !important; width: 100%; margin-top: 0px !important; margin-bottom: 6px !important; }
@@ -148,23 +145,35 @@ def get_theme_css(is_light: bool) -> str:
 </style>
 """
     style_part = css_template.replace("__THEME_VARS__", theme_vars)
-    return splash_overlay_html + style_part
+    return (splash_overlay_html if show_splash else "") + style_part
 
 def render_top_logo() -> str:
-    import os, base64
-    
-    manual_link = '<div style="color:#ef4444; font-size:12px; font-weight:bold; margin-top:6px;">⚠️ 尚未偵測到手冊檔案</div>'
+    manual_link_1 = '<span style="color:#ef4444; font-size:12px; font-weight:bold;">⚠️ 缺教學手冊PDF</span>'
+    manual_link_2 = '<span style="color:#ef4444; font-size:12px; font-weight:bold;">⚠️ 缺巡檢機制PDF</span>'
     
     try:
-        for f in os.listdir('.'):
-            if '手冊' in f and f.lower().endswith('.pdf'):
+        pdf_files = [f for f in os.listdir('.') if f.lower().endswith('.pdf')]
+        
+        # 1. 檢索「操作與養護巡查作業教學手冊」
+        for f in pdf_files:
+            if '教學手冊' in f or ('手冊' in f and '懶人包' not in f and '路巡' not in f):
                 with open(f, "rb") as pdf_file:
                     b64_pdf = base64.b64encode(pdf_file.read()).decode()
                 href = f"data:application/pdf;base64,{b64_pdf}"
-                manual_link = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 操作與養護巡查作業教學手冊</a>'
+                manual_link_1 = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 操作與養護巡查作業教學手冊</a>'
+                break
+
+        # 2. 檢索「南澳段路巡邊坡巡檢機制(115年最新修訂)」
+        for f in pdf_files:
+            if '懶人包' in f or '路巡' in f or '巡檢' in f:
+                with open(f, "rb") as pdf_file:
+                    b64_pdf = base64.b64encode(pdf_file.read()).decode()
+                href = f"data:application/pdf;base64,{b64_pdf}"
+                manual_link_2 = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 南澳段路巡邊坡巡檢機制(115年最新修訂)</a>'
                 break
     except Exception as e:
-        manual_link = f'<div style="color:#ef4444; font-size:12px; margin-top:6px;">⚠️ 手冊讀取失敗: {e}</div>'
+        manual_link_1 = f'<span style="color:#ef4444; font-size:12px;">⚠️ PDF 讀取異常: {e}</span>'
+        manual_link_2 = ""
 
     return f"""
     <div class="system-header-box notranslate" translate="no">
@@ -188,7 +197,8 @@ def render_top_logo() -> str:
       </svg>
       <div class="title-wrapper">
         <div class="system-title">南澳邊坡全生命週期資料庫</div>
-        {manual_link}
+        {manual_link_1}
+        {manual_link_2}
       </div>
     </div>
     """
