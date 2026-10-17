@@ -215,7 +215,7 @@ def add_debris_flow_to_map(folium_map, streams, show_default=True):
 
 @st.cache_data
 def load_geo_sensitive_kmz(file_list, remove_white_bg=False):
-    """支援同時讀取 1 個或多個分割後的地質敏感區 KMZ/KML，自動合併圖層"""
+    """支援同時讀取 1 個或多個分割後的地質敏感/土石流潛勢區 KMZ/KML，自動合併圖層"""
     overlays = []
     polygons = []
     if not file_list:
@@ -250,7 +250,7 @@ def load_geo_sensitive_kmz(file_list, remove_white_bg=False):
             # A. 解析 GroundOverlay 柵格影像
             for elem in root.iter():
                 if strip_tag(elem.tag) == 'GroundOverlay':
-                    ov_name = find_child_text(elem, 'name') or f"南澳工務段地質敏感區 ({file_path})"
+                    ov_name = find_child_text(elem, 'name') or f"南澳工務段地質敏感/土石流潛勢區 ({file_path})"
                     href = find_child_text(elem, 'href')
                     north = find_child_text(elem, 'north')
                     south = find_child_text(elem, 'south')
@@ -318,7 +318,7 @@ def load_geo_sensitive_kmz(file_list, remove_white_bg=False):
             # B. 解析向量 Polygon / LineString
             for elem in root.iter():
                 if strip_tag(elem.tag) == 'Placemark':
-                    pm_name = find_child_text(elem, 'name') or "地質敏感區範圍"
+                    pm_name = find_child_text(elem, 'name') or "地質敏感/土石流潛勢區範圍"
                     pm_desc = find_child_text(elem, 'description') or ""
                     for sub in elem.iter():
                         st_tag = strip_tag(sub.tag)
@@ -340,15 +340,15 @@ def load_geo_sensitive_kmz(file_list, remove_white_bg=False):
             if z is not None:
                 z.close()
         except Exception as e:
-            st.error(f"解析地質敏感區圖資 ({file_path}) 時發生異常: {e}")
+            st.error(f"解析地質敏感/土石流潛勢區圖資 ({file_path}) 時發生異常: {e}")
 
     return overlays, polygons
 
 def add_geo_sensitive_to_map(folium_map, overlays, polygons, opacity=0.70, show_default=True):
-    """將多個分割後的地質敏感區圖層統一掛載至單一 FeatureGroup 開關中"""
+    """將多個分割後的地質敏感/土石流潛勢區圖層統一掛載至單一 FeatureGroup 開關中"""
     if not overlays and not polygons:
         return
-    fg_geo = folium.FeatureGroup(name="🧱 南澳工務段地質敏感區", show=show_default)
+    fg_geo = folium.FeatureGroup(name="🧱 南澳工務段地質敏感/土石流潛勢區", show=show_default)
     for ov in overlays:
         folium.raster_layers.ImageOverlay(
             image=ov["image_uri"],
@@ -765,28 +765,28 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
                 search_res_ph.info("💡 *若要啟用精準點圖查詢，請確保系統目錄下包含 `省道里程坐標(里程牌標誌).csv`*")
 
 # ==============================================================================
-# 頁面 4：災害斑點圖 (支援多分割地質敏感區 KMZ 無縫拼接與委員審查比對控制器)
+# 頁面 4：災害斑點圖 (支援多分割地質敏感/土石流潛勢區 KMZ 無縫拼接與委員審查比對控制器)
 # ==============================================================================
 elif st.session_state.bottom_tab == "🔥 災害斑點圖":
-    st.markdown("<div class='map-sub-title notranslate' translate='no'>歷次災害斑點圖 ✕ 南澳工務段地質敏感區疊圖比對</div>", unsafe_allow_html=True)
+    st.markdown("<div class='map-sub-title notranslate' translate='no'>歷次災害斑點圖 ✕ 南澳工務段地質敏感/土石流潛勢區疊圖比對</div>", unsafe_allow_html=True)
     
     with st.container(border=True):
         ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.2, 1.3, 1.5, 1.2])
         with ctrl_c1:
-            show_geo_layer = st.checkbox("🧱 顯示「南澳工務段地質敏感區」底圖", value=True)
+            show_geo_layer = st.checkbox("🧱 顯示「南澳工務段地質敏感/土石流潛勢區」底圖", value=True)
         with ctrl_c2:
             transparent_white = st.checkbox("✨ 智慧濾除圖資白底 (透出衛星底圖)", value=True, help="自動將 PNG 圖資之白色背景轉為透明，方便與衛星空照圖直接疊合判釋")
         with ctrl_c3:
-            geo_opacity = st.slider("🎚️ 地質敏感區圖層透明度", min_value=0.10, max_value=1.00, value=0.75, step=0.05)
+            geo_opacity = st.slider("🎚️ 地質敏感/土石流潛勢區圖層透明度", min_value=0.10, max_value=1.00, value=0.75, step=0.05)
         with ctrl_c4:
-            focus_geo_bounds = st.checkbox("🎯 視角鎖定地質敏感區全區", value=False)
+            focus_geo_bounds = st.checkbox("🎯 視角鎖定地質敏感/土石流潛勢區全區", value=False)
 
     gs_overlays, gs_polygons = [], []
     if geo_sensitive_files:
         gs_overlays, gs_polygons = load_geo_sensitive_kmz(geo_sensitive_files, remove_white_bg=transparent_white)
-        st.caption(f"✅ 已載入地質敏感區圖資檔案：`{', '.join(geo_sensitive_files)}`（共 {len(gs_overlays)} 幅影像圖層）")
+        st.caption(f"✅ 已載入地質敏感/土石流潛勢區圖資檔案：`{', '.join(geo_sensitive_files)}`（共 {len(gs_overlays)} 幅影像圖層）")
     else:
-        st.warning("⚠️ **尚未偵測到地質敏感區 KMZ 檔案**：請將分割後的 `part1`、`part2` 或輕量版 `.kmz` 上傳至 GitHub 專案根目錄，系統將自動合併疊圖！")
+        st.warning("⚠️ **尚未偵測到地質敏感/土石流潛勢區 KMZ 檔案**：請將分割後的 `part1`、`part2` 或輕量版 `.kmz` 上傳至 GitHub 專案根目錄，系統將自動合併疊圖！")
 
     search_res_ph = st.empty()
     
@@ -851,7 +851,7 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
             <p style="margin: 4px 0; font-size: 13.5px; font-weight:bold; color:#0f172a;"><span style="color: #e63946; font-size:17px;">●</span> 113年災害點位</p>
             <p style="margin: 4px 0; font-size: 13.5px; font-weight:bold; color:#0f172a;"><span style="color: #f77f00; font-size:17px;">●</span> 114年災害點位</p>
             <p style="margin: 4px 0; font-size: 13.5px; font-weight:bold; color:#0f172a;"><span style="color: #2a9d8f; font-size:17px;">●</span> 115年災害點位</p>
-            <p style="margin: 6px 0 0 0; font-size: 12.5px; font-weight:bold; color:#b45309; background:#fef3c7; padding:3px 6px; border-radius:4px; border:1px solid #f59e0b;">🧱 底圖：南澳地質敏感區</p>
+            <p style="margin: 6px 0 0 0; font-size: 12.5px; font-weight:bold; color:#b45309; background:#fef3c7; padding:3px 6px; border-radius:4px; border:1px solid #f59e0b;">🧱 底圖：南澳地質敏感/土石流潛勢區</p>
             <p style="margin: 6px 0 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;">🌊 土石流潛勢溪流</p>
             <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #dc2626;">━</span> 高 <span style="color: #f59e0b;">━</span> 中 <span style="color: #16a34a;">━</span> 低 <span style="color: #7c3aed;">━</span> 持續觀察</p>
         </div>
