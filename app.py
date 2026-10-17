@@ -125,27 +125,24 @@ def load_kmz():
         pass
     return pd.DataFrame(disasters)
 
-# ==================== 空間圖資自動掃描與多檔案解析引擎 ====================
-def find_spatial_overlay_files():
+# ==================== 核心升級：支援多個分割 KMZ (part1, part2) 或分離式 KML+PNG 自動偵測與無縫拼接 ====================
+def find_geo_sensitive_files():
     all_files = sorted(os.listdir('.'))
-    geo_files = []
-    debris_files = []
+    matched = []
     for f in all_files:
         fl = f.lower()
         if (fl.endswith('.kmz') or fl.endswith('.kml')) and f != KMZ_FILE and '歷次災害' not in f:
-            if any(k in fl for k in ['土石流', '溪流', '1753']):
-                debris_files.append(f)
-            elif any(k in fl for k in ['敏感', '地質', 'gsb', 'geo', 'sensitive', 'part']):
-                geo_files.append(f)
-    # 若未特別分類，把其他非災害 KMZ 歸入地質敏感區備用
-    if not geo_files and not debris_files:
+            if any(k in fl for k in ['敏感', '地質', 'gsb', 'geo', 'sensitive', 'part']):
+                matched.append(f)
+    if not matched:
         for f in all_files:
             if f.lower().endswith('.kmz') and f != KMZ_FILE and '歷次災害' not in f:
-                geo_files.append(f)
-    return geo_files, debris_files
+                matched.append(f)
+    return matched
 
 @st.cache_data
-def load_kmz_overlay(file_list, remove_white_bg=False):
+def load_geo_sensitive_kmz(file_list, remove_white_bg=False):
+    """支援同時讀取 1 個或多個分割後的地質敏感區 KMZ/KML，自動合併圖層"""
     overlays = []
     polygons = []
     if not file_list:
@@ -177,9 +174,10 @@ def load_kmz_overlay(file_list, remove_white_bg=False):
             else:
                 root = ET.parse(file_path).getroot()
 
+            # A. 解析 GroundOverlay 柵格影像
             for elem in root.iter():
                 if strip_tag(elem.tag) == 'GroundOverlay':
-                    ov_name = find_child_text(elem, 'name') or f"空間圖層 ({file_path})"
+                    ov_name = find_child_text(elem, 'name') or f"南澳工務段地質敏感區 ({file_path})"
                     href = find_child_text(elem, 'href')
                     north = find_child_text(elem, 'north')
                     south = find_child_text(elem, 'south')
@@ -219,6 +217,7 @@ def load_kmz_overlay(file_list, remove_white_bg=False):
                             if matched_img:
                                 raw_img_bytes = z.read(matched_img)
                         else:
+                            # 支援直接讀取根目錄或 files/ 子目錄下的圖片
                             if os.path.exists(href_clean):
                                 raw_img_bytes = open(href_clean, "rb").read()
                             elif os.path.exists(os.path.basename(href_clean)):
@@ -243,9 +242,10 @@ def load_kmz_overlay(file_list, remove_white_bg=False):
                                 "bounds": [[float(south), float(west)], [float(north), float(east)]]
                             })
 
+            # B. 解析向量 Polygon / LineString
             for elem in root.iter():
                 if strip_tag(elem.tag) == 'Placemark':
-                    pm_name = find_child_text(elem, 'name') or "圖資範圍"
+                    pm_name = find_child_text(elem, 'name') or "地質敏感區範圍"
                     pm_desc = find_child_text(elem, 'description') or ""
                     for sub in elem.iter():
                         st_tag = strip_tag(sub.tag)
@@ -267,14 +267,15 @@ def load_kmz_overlay(file_list, remove_white_bg=False):
             if z is not None:
                 z.close()
         except Exception as e:
-            st.error(f"解析圖資 ({file_path}) 時發生異常: {e}")
+            st.error(f"解析地質敏感區圖資 ({file_path}) 時發生異常: {e}")
 
     return overlays, polygons
 
-def add_spatial_layer_to_map(folium_map, overlays, polygons, layer_name="空間圖層", color_hex="#d97706", opacity=0.70, show_default=True):
+def add_geo_sensitive_to_map(folium_map, overlays, polygons, opacity=0.70, show_default=True):
+    """將多個分割後的地質敏感區圖層統一掛載至單一 FeatureGroup 開關中"""
     if not overlays and not polygons:
         return
-    fg = folium.FeatureGroup(name=layer_name, show=show_default)
+    fg_geo = folium.FeatureGroup(name="🧱 南澳工務段地質敏感區", show=show_default)
     for ov in overlays:
         folium.raster_layers.ImageOverlay(
             image=ov["image_uri"],
@@ -283,29 +284,29 @@ def add_spatial_layer_to_map(folium_map, overlays, polygons, layer_name="空間�
             interactive=True,
             cross_origin=False,
             zindex=2
-        ).add_to(fg)
+        ).add_to(fg_geo)
 
     for poly in polygons:
         popup_txt = f"<b>{poly['name']}</b><br>{poly['desc']}"
         if poly["type"] == "Polygon":
             folium.Polygon(
                 locations=poly["locations"],
-                color=color_hex,
+                color="#d97706",
                 weight=2.5,
                 fill=True,
-                fill_color=color_hex,
-                fill_opacity=opacity * 0.5,
+                fill_color="#f59e0b",
+                fill_opacity=opacity * 0.6,
                 popup=folium.Popup(popup_txt, max_width=320)
-            ).add_to(fg)
+            ).add_to(fg_geo)
         else:
             folium.PolyLine(
                 locations=poly["locations"],
-                color=color_hex,
+                color="#d97706",
                 weight=3,
                 opacity=opacity,
                 popup=folium.Popup(popup_txt, max_width=320)
-            ).add_to(fg)
-    fg.add_to(folium_map)
+            ).add_to(fg_geo)
+    fg_geo.add_to(folium_map)
 
 @st.cache_data
 def load_mileages():
@@ -340,7 +341,7 @@ def load_mileages():
 df = load_data()
 df_disasters = load_kmz()
 df_mileages, is_network_link, found_mileage_file = load_mileages()
-geo_files, debris_files = find_spatial_overlay_files()
+geo_sensitive_files = find_geo_sensitive_files()
 
 if df.empty:
     st.error(f"找不到邊坡資料檔案：{DATA_FILE}")
@@ -558,7 +559,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                     grade = str(r['定性分級'])
                     quant_g = r.get('定量分級', '未施作')
                     with st.container(border=True):
-                        st.markdown(f"<span class='route-green-text'>📍 {r['路線']} {r['里程樁號(起,起)']}</span>", unsafe_allow_html=True)
+                        st.markdown(f"<span class='route-green-text'>📍 {r['路線']} {r['里程樁號(起)']}</span>", unsafe_allow_html=True)
                         if st.button(f"進入口卡檢視 [{grade}級 | RHRS: {quant_g}]", key=f"pick_{r['口卡編號']}", use_container_width=True):
                             st.session_state.selected_slope_id = r['口卡編號']
                             st.rerun()
@@ -643,13 +644,9 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
         folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Earth", name="🛰️ 衛星空照圖").add_to(m_loc)
         folium.TileLayer(tiles="OpenStreetMap", name="🗺️ 標準電子地圖").add_to(m_loc)
 
-        # 自動掛載地質敏感區與土石流潛勢溪流圖層
-        if geo_files:
-            gs_ov, gs_poly = load_kmz_overlay(geo_files, remove_white_bg=True)
-            add_spatial_layer_to_map(m_loc, gs_ov, gs_poly, layer_name="🧱 南澳工務段地質敏感區", color_hex="#d97706", opacity=0.65, show_default=False)
-        if debris_files:
-            db_ov, db_poly = load_kmz_overlay(debris_files, remove_white_bg=True)
-            add_spatial_layer_to_map(m_loc, db_ov, db_poly, layer_name="🌊 115年度土石流潛勢溪流圖", color_hex="#0284c7", opacity=0.60, show_default=False)
+        if geo_sensitive_files:
+            gs_overlays, gs_polygons = load_geo_sensitive_kmz(geo_sensitive_files, remove_white_bg=True)
+            add_geo_sensitive_to_map(m_loc, gs_overlays, gs_polygons, opacity=0.65, show_default=False)
 
         cmap = {"A": "#c05646", "B": "#d9822b", "C+": "#7c3aed", "C": "#4A6B82", "D": "#52796f", "其他": "#64748b"}
         for _, r in valid_pts.iterrows():
@@ -684,32 +681,32 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
                 search_res_ph.info("💡 *若要啟用精準點圖查詢，請確保系統目錄下包含 `省道里程坐標(里程牌標誌).csv`*")
 
 # ==============================================================================
-# 頁面 4：災害斑點圖 (整合「地質敏感區」與「土石流潛勢溪流」多圖層疊加與委員審查比對控制器)
+# 頁面 4：災害斑點圖 (支援多分割地質敏感區 KMZ 無縫拼接與委員審查比對控制器)
 # ==============================================================================
 elif st.session_state.bottom_tab == "🔥 災害斑點圖":
-    st.markdown("<div class='map-sub-title notranslate' translate='no'>歷次災害斑點圖 ✕ 地質敏感區 ✕ 土石流潛勢溪流圖層疊加比對</div>", unsafe_allow_html=True)
+    st.markdown("<div class='map-sub-title notranslate' translate='no'>歷次災害斑點圖 ✕ 南澳工務段地質敏感區疊圖比對</div>", unsafe_allow_html=True)
     
     with st.container(border=True):
-        ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.1, 1.2, 1.4, 1.3])
+        ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.2, 1.3, 1.5, 1.2])
         with ctrl_c1:
-            show_geo_layer = st.checkbox("🧱 顯示「地質敏感區」底圖", value=True)
+            show_geo_layer = st.checkbox("🧱 顯示「南澳工務段地質敏感區」底圖", value=True)
         with ctrl_c2:
-            show_debris_layer = st.checkbox("🌊 顯示「土石流潛勢溪流」", value=True)
+            transparent_white = st.checkbox("✨ 智慧濾除圖資白底 (透出衛星底圖)", value=True, help="自動將 PNG 圖資之白色背景轉為透明，方便與衛星空照圖直接疊合判釋")
         with ctrl_c3:
-            transparent_white = st.checkbox("✨ 智慧濾除圖資白底 (透出衛星底圖)", value=True)
+            geo_opacity = st.slider("🎚️ 地質敏感區圖層透明度", min_value=0.10, max_value=1.00, value=0.75, step=0.05)
         with ctrl_c4:
-            geo_opacity = st.slider("🎚️ 圖層透明度", min_value=0.10, max_value=1.00, value=0.65, step=0.05)
+            focus_geo_bounds = st.checkbox("🎯 視角鎖定地質敏感區全區", value=False)
 
     gs_overlays, gs_polygons = [], []
-    if geo_files:
-        gs_overlays, gs_polygons = load_kmz_overlay(geo_files, remove_white_bg=transparent_white)
-    db_overlays, db_polygons = [], []
-    if debris_files:
-        db_overlays, db_polygons = load_kmz_overlay(debris_files, remove_white_bg=transparent_white)
+    if geo_sensitive_files:
+        gs_overlays, gs_polygons = load_geo_sensitive_kmz(geo_sensitive_files, remove_white_bg=transparent_white)
+        st.caption(f"✅ 已載入地質敏感區圖資檔案：`{', '.join(geo_sensitive_files)}`（共 {len(gs_overlays)} 幅影像圖層）")
+    else:
+        st.warning("⚠️ **尚未偵測到地質敏感區 KMZ 檔案**：請將分割後的 `part1`、`part2` 或輕量版 `.kmz` 上傳至 GitHub 專案根目錄，系統將自動合併疊圖！")
 
     search_res_ph = st.empty()
     
-    if not df_disasters.empty or gs_overlays or db_overlays:
+    if not df_disasters.empty or gs_overlays or gs_polygons:
         default_lat = df_disasters['緯度'].median() if not df_disasters.empty else 24.465
         default_lon = df_disasters['經度'].median() if not df_disasters.empty else 121.802
         m_dis = folium.Map(location=[default_lat, default_lon], zoom_start=11, tiles=None)
@@ -722,15 +719,15 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}", attr="Google Terrain", name="⛰️ 地形等高線圖").add_to(m_dis)
         folium.TileLayer(tiles="OpenStreetMap", name="🗺️ 標準電子地圖").add_to(m_dis)
         
-        # 1. 鋪設地質敏感區底圖
         if show_geo_layer and (gs_overlays or gs_polygons):
-            add_spatial_layer_to_map(m_dis, gs_overlays, gs_polygons, layer_name="🧱 南澳工務段地質敏感區", color_hex="#d97706", opacity=geo_opacity, show_default=True)
+            add_geo_sensitive_to_map(m_dis, gs_overlays, gs_polygons, opacity=geo_opacity, show_default=True)
+            if focus_geo_bounds and gs_overlays:
+                all_south = min(ov["bounds"][0][0] for ov in gs_overlays)
+                all_west  = min(ov["bounds"][0][1] for ov in gs_overlays)
+                all_north = max(ov["bounds"][1][0] for ov in gs_overlays)
+                all_east  = max(ov["bounds"][1][1] for ov in gs_overlays)
+                m_dis.fit_bounds([[all_south, all_west], [all_north, all_east]])
 
-        # 2. 鋪設土石流潛勢溪流圖層
-        if show_debris_layer and (db_overlays or db_polygons):
-            add_spatial_layer_to_map(m_dis, db_overlays, db_polygons, layer_name="🌊 115年度土石流潛勢溪流圖", color_hex="#0284c7", opacity=geo_opacity, show_default=True)
-
-        # 3. 疊加歷次災害斑點
         yp = {"112年": "#457b9d", "113年": "#e63946", "114年": "#f77f00", "115年": "#2a9d8f"}
         if not df_disasters.empty:
             for yr in sorted(df_disasters['年度'].unique()):
@@ -762,14 +759,13 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
                 fg.add_to(m_dis)
         
         legend_html = '''
-        <div style="position: fixed; bottom: 20px; right: 20px; width: 185px; background-color: rgba(255,255,255,0.94); z-index:9999; border-radius: 8px; padding: 12px; border: 2px solid #cbd5e1; box-shadow: 2px 2px 8px rgba(0,0,0,0.2);">
-            <p style="margin-top: 0; margin-bottom: 6px; font-weight: 900; font-size: 14.5px; color:#0f172a; border-bottom:1px solid #cbd5e1; padding-bottom:4px;">🗺️ 委員審查圖例</p>
+        <div style="position: fixed; bottom: 20px; right: 20px; width: 175px; background-color: rgba(255,255,255,0.94); z-index:9999; border-radius: 8px; padding: 12px; border: 2px solid #cbd5e1; box-shadow: 2px 2px 8px rgba(0,0,0,0.2);">
+            <p style="margin-top: 0; margin-bottom: 6px; font-weight: 900; font-size: 14.5px; color:#0f172a; border-bottom:1px solid #cbd5e1; padding-bottom:4px;">🗺️ 審查圖例說明</p>
             <p style="margin: 4px 0; font-size: 13.5px; font-weight:bold; color:#0f172a;"><span style="color: #457b9d; font-size:17px;">●</span> 112年災害點位</p>
             <p style="margin: 4px 0; font-size: 13.5px; font-weight:bold; color:#0f172a;"><span style="color: #e63946; font-size:17px;">●</span> 113年災害點位</p>
             <p style="margin: 4px 0; font-size: 13.5px; font-weight:bold; color:#0f172a;"><span style="color: #f77f00; font-size:17px;">●</span> 114年災害點位</p>
             <p style="margin: 4px 0; font-size: 13.5px; font-weight:bold; color:#0f172a;"><span style="color: #2a9d8f; font-size:17px;">●</span> 115年災害點位</p>
-            <p style="margin: 6px 0 2px 0; font-size: 12px; font-weight:bold; color:#b45309; background:#fef3c7; padding:2px 4px; border-radius:3px;">🧱 南澳地質敏感區</p>
-            <p style="margin: 2px 0 0 0; font-size: 12px; font-weight:bold; color:#0369a1; background:#e0f2fe; padding:2px 4px; border-radius:3px;">🌊 土石流潛勢溪流圖</p>
+            <p style="margin: 6px 0 0 0; font-size: 12.5px; font-weight:bold; color:#b45309; background:#fef3c7; padding:3px 6px; border-radius:4px; border:1px solid #f59e0b;">🧱 底圖：南澳地質敏感區</p>
         </div>
         '''
         m_dis.get_root().html.add_child(folium.Element(legend_html))
