@@ -131,14 +131,87 @@ def find_geo_sensitive_files():
     matched = []
     for f in all_files:
         fl = f.lower()
-        if (fl.endswith('.kmz') or fl.endswith('.kml')) and f != KMZ_FILE and '歷次災害' not in f:
+        if (fl.endswith('.kmz') or fl.endswith('.kml')) and f != KMZ_FILE and '歷次災害' not in f and '土石流' not in f:
             if any(k in fl for k in ['敏感', '地質', 'gsb', 'geo', 'sensitive', 'part']):
                 matched.append(f)
     if not matched:
         for f in all_files:
-            if f.lower().endswith('.kmz') and f != KMZ_FILE and '歷次災害' not in f:
+            if f.lower().endswith('.kmz') and f != KMZ_FILE and '歷次災害' not in f and '土石流' not in f:
                 matched.append(f)
     return matched
+
+# ==================== 115年度1753條土石流潛勢溪流圖 (全國圖資，依南澳段範圍裁切) ====================
+def find_debris_flow_file():
+    for f in sorted(os.listdir('.')):
+        fl = f.lower()
+        if fl.endswith('.kmz') and ('土石流' in f or '1753' in fl):
+            return f
+    return None
+
+@st.cache_data
+def load_debris_flow_kmz(file_path, bbox):
+    """讀取土石流潛勢溪流 KMZ（LineString），僅保留落在 bbox (south, west, north, east) 內的溪流"""
+    streams = []
+    if not file_path or not os.path.exists(file_path):
+        return streams
+    try:
+        with zipfile.ZipFile(file_path, 'r') as z:
+            kmls = [f for f in z.namelist() if f.lower().endswith('.kml')]
+            if not kmls:
+                return streams
+            root = ET.fromstring(z.read(kmls[0]))
+        south, west, north, east = bbox
+        for pm in root.iter('{http://www.opengis.net/kml/2.2}Placemark'):
+            attrs = {sd.get('name'): (sd.text or '').strip() for sd in pm.iter('{http://www.opengis.net/kml/2.2}SimpleData')}
+            lines = []
+            for ls in pm.iter('{http://www.opengis.net/kml/2.2}LineString'):
+                ct = ls.find('{http://www.opengis.net/kml/2.2}coordinates')
+                if ct is None or not ct.text:
+                    continue
+                pts = []
+                for token in ct.text.strip().split():
+                    c = token.split(',')
+                    if len(c) >= 2:
+                        pts.append([round(float(c[1]), 6), round(float(c[0]), 6)])
+                if len(pts) >= 2:
+                    lines.append(pts)
+            if not lines:
+                continue
+            if any(south <= p[0] <= north and west <= p[1] <= east for ln in lines for p in ln):
+                streams.append({"attrs": attrs, "lines": lines})
+    except Exception as e:
+        st.error(f"解析土石流潛勢溪流圖資 ({file_path}) 時發生異常: {e}")
+    return streams
+
+def add_debris_flow_to_map(folium_map, streams, show_default=True):
+    """將土石流潛勢溪流依風險等級著色，掛載為獨立圖層開關"""
+    if not streams:
+        return
+    risk_color = {"高": "#dc2626", "中": "#f59e0b", "低": "#16a34a", "持續觀察": "#7c3aed"}
+    fg_db = folium.FeatureGroup(name=f"🌊 115年度土石流潛勢溪流 ({len(streams)}條)", show=show_default)
+    for s in streams:
+        a = s["attrs"]
+        risk = a.get("Risk", "")
+        color = risk_color.get(risk, "#64748b")
+        popup_html = f"""<div style='font-size:14px; line-height:1.6; min-width:230px;'>
+<b style='font-size:15.5px; color:#0f172a;'>{a.get('Debrisno', '')}</b><br/>
+<b>位置：</b>{a.get('Full', '')} {a.get('Mark', '')}<br/>
+<b>溪流：</b>{a.get('Basin', '')} {a.get('Sub_basin', '')}<br/>
+<b>風險等級：</b><span style='color:{color}; font-weight:bold;'>{risk}</span><br/>
+<b>保全住戶：</b>{a.get('TRes_Class', '')}<br/>
+<b>鄰近道路：</b>{a.get('Roadname', '')}<br/>
+<b>溪流長度：</b>{a.get('Length', '')} km
+</div>"""
+        for pts in s["lines"]:
+            folium.PolyLine(
+                locations=pts,
+                color=color,
+                weight=3.5,
+                opacity=0.9,
+                tooltip=f"{a.get('Debrisno', '')}（{risk}）",
+                popup=folium.Popup(popup_html, max_width=340)
+            ).add_to(fg_db)
+    fg_db.add_to(folium_map)
 
 @st.cache_data
 def load_geo_sensitive_kmz(file_list, remove_white_bg=False):
@@ -342,6 +415,15 @@ df = load_data()
 df_disasters = load_kmz()
 df_mileages, is_network_link, found_mileage_file = load_mileages()
 geo_sensitive_files = find_geo_sensitive_files()
+debris_file = find_debris_flow_file()
+debris_streams = []
+if debris_file and not df.empty:
+    _lat_s = pd.concat([df['起點緯度'].dropna(), df_disasters['緯度'] if not df_disasters.empty else pd.Series(dtype=float)])
+    _lon_s = pd.concat([df['起點經度'].dropna(), df_disasters['經度'] if not df_disasters.empty else pd.Series(dtype=float)])
+    if not _lat_s.empty and not _lon_s.empty:
+        _buf = 0.08
+        debris_bbox = (float(_lat_s.min()) - _buf, float(_lon_s.min()) - _buf, float(_lat_s.max()) + _buf, float(_lon_s.max()) + _buf)
+        debris_streams = load_debris_flow_kmz(debris_file, debris_bbox)
 
 if df.empty:
     st.error(f"找不到邊坡資料檔案：{DATA_FILE}")
@@ -648,6 +730,8 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
             gs_overlays, gs_polygons = load_geo_sensitive_kmz(geo_sensitive_files, remove_white_bg=True)
             add_geo_sensitive_to_map(m_loc, gs_overlays, gs_polygons, opacity=0.65, show_default=False)
 
+        add_debris_flow_to_map(m_loc, debris_streams, show_default=False)
+
         cmap = {"A": "#c05646", "B": "#d9822b", "C+": "#7c3aed", "C": "#4A6B82", "D": "#52796f", "其他": "#64748b"}
         for _, r in valid_pts.iterrows():
             g = str(r['定性分級'])
@@ -728,6 +812,8 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
                 all_east  = max(ov["bounds"][1][1] for ov in gs_overlays)
                 m_dis.fit_bounds([[all_south, all_west], [all_north, all_east]])
 
+        add_debris_flow_to_map(m_dis, debris_streams, show_default=True)
+
         yp = {"112年": "#457b9d", "113年": "#e63946", "114年": "#f77f00", "115年": "#2a9d8f"}
         if not df_disasters.empty:
             for yr in sorted(df_disasters['年度'].unique()):
@@ -766,6 +852,8 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
             <p style="margin: 4px 0; font-size: 13.5px; font-weight:bold; color:#0f172a;"><span style="color: #f77f00; font-size:17px;">●</span> 114年災害點位</p>
             <p style="margin: 4px 0; font-size: 13.5px; font-weight:bold; color:#0f172a;"><span style="color: #2a9d8f; font-size:17px;">●</span> 115年災害點位</p>
             <p style="margin: 6px 0 0 0; font-size: 12.5px; font-weight:bold; color:#b45309; background:#fef3c7; padding:3px 6px; border-radius:4px; border:1px solid #f59e0b;">🧱 底圖：南澳地質敏感區</p>
+            <p style="margin: 6px 0 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;">🌊 土石流潛勢溪流</p>
+            <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #dc2626;">━</span> 高 <span style="color: #f59e0b;">━</span> 中 <span style="color: #16a34a;">━</span> 低 <span style="color: #7c3aed;">━</span> 持續觀察</p>
         </div>
         '''
         m_dis.get_root().html.add_child(folium.Element(legend_html))
