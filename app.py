@@ -16,6 +16,8 @@ import numpy as np
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 
+Image.MAX_IMAGE_PIXELS = None
+
 os.makedirs(".streamlit", exist_ok=True)
 config_path = os.path.join(".streamlit", "config.toml")
 config_content = """[theme]
@@ -123,30 +125,27 @@ def load_kmz():
         pass
     return pd.DataFrame(disasters)
 
-# ==================== 核心新增：南澳工務段地質敏感區 KMZ (GroundOverlay + Vector) 解析引擎 ====================
-def find_geo_sensitive_file():
-    all_files = os.listdir('.')
-    # 1. 優先尋找包含關鍵字之 KMZ / KML
+# ==================== 核心升級：支援多個分割 KMZ (part1, part2) 或分離式 KML+PNG 自動偵測與無縫拼接 ====================
+def find_geo_sensitive_files():
+    all_files = sorted(os.listdir('.'))
+    matched = []
     for f in all_files:
         fl = f.lower()
-        if (fl.endswith('.kmz') or fl.endswith('.kml')) and f != KMZ_FILE:
-            if any(k in fl for k in ['敏感', '地質', 'gsb', 'geo', 'sensitive']):
-                return f
-    # 2. 備援：若根目錄有除了「歷次災害」以外的任何 KMZ，自動抓取
-    for f in all_files:
-        if f.lower().endswith('.kmz') and f != KMZ_FILE:
-            return f
-    return None
+        if (fl.endswith('.kmz') or fl.endswith('.kml')) and f != KMZ_FILE and '歷次災害' not in f:
+            if any(k in fl for k in ['敏感', '地質', 'gsb', 'geo', 'sensitive', 'part']):
+                matched.append(f)
+    if not matched:
+        for f in all_files:
+            if f.lower().endswith('.kmz') and f != KMZ_FILE and '歷次災害' not in f:
+                matched.append(f)
+    return matched
 
 @st.cache_data
-def load_geo_sensitive_kmz(file_path, remove_white_bg=False):
-    """
-    支援解析地調所/Google Earth 之 GroundOverlay (如 doc.kml + files/map_gsb_06.png)
-    以及一般向量 Polygon / LineString 多邊形圖資
-    """
+def load_geo_sensitive_kmz(file_list, remove_white_bg=False):
+    """支援同時讀取 1 個或多個分割後的地質敏感區 KMZ/KML，自動合併圖層"""
     overlays = []
     polygons = []
-    if not file_path or not os.path.exists(file_path):
+    if not file_list:
         return overlays, polygons
 
     def strip_tag(tag):
@@ -158,45 +157,54 @@ def load_geo_sensitive_kmz(file_path, remove_white_bg=False):
                 return child.text.strip()
         return None
 
-    try:
-        if file_path.lower().endswith('.kmz'):
-            with zipfile.ZipFile(file_path, 'r') as z:
+    for file_path in file_list:
+        if not os.path.exists(file_path):
+            continue
+        try:
+            namelist = []
+            z = None
+            if file_path.lower().endswith('.kmz'):
+                z = zipfile.ZipFile(file_path, 'r')
                 namelist = z.namelist()
                 kmls = [f for f in namelist if f.lower().endswith('.kml')]
                 if not kmls:
-                    return overlays, polygons
+                    z.close()
+                    continue
                 root = ET.fromstring(z.read(kmls[0]))
+            else:
+                root = ET.parse(file_path).getroot()
 
-                # A. 解析 GroundOverlay (柵格圖片疊加層，如 files/map_gsb_06.png)
-                for elem in root.iter():
-                    if strip_tag(elem.tag) == 'GroundOverlay':
-                        ov_name = find_child_text(elem, 'name') or "南澳工務段地質敏感區"
-                        href = find_child_text(elem, 'href')
-                        north = find_child_text(elem, 'north')
-                        south = find_child_text(elem, 'south')
-                        east = find_child_text(elem, 'east')
-                        west = find_child_text(elem, 'west')
+            # A. 解析 GroundOverlay 柵格影像
+            for elem in root.iter():
+                if strip_tag(elem.tag) == 'GroundOverlay':
+                    ov_name = find_child_text(elem, 'name') or f"南澳工務段地質敏感區 ({file_path})"
+                    href = find_child_text(elem, 'href')
+                    north = find_child_text(elem, 'north')
+                    south = find_child_text(elem, 'south')
+                    east = find_child_text(elem, 'east')
+                    west = find_child_text(elem, 'west')
 
-                        # 若採用 gx:LatLonQuad 四角座標定義
-                        if not (north and south and east and west):
-                            quad_coords = None
-                            for sub in elem.iter():
-                                if strip_tag(sub.tag) == 'LatLonQuad':
-                                    quad_coords = find_child_text(sub, 'coordinates')
-                                    break
-                            if quad_coords:
-                                lats, lons = [], []
-                                for pt in quad_coords.split():
-                                    parts = pt.split(',')
-                                    if len(parts) >= 2:
-                                        lons.append(float(parts[0]))
-                                        lats.append(float(parts[1]))
-                                if lats and lons:
-                                    north, south = max(lats), min(lats)
-                                    east, west = max(lons), min(lons)
+                    if not (north and south and east and west):
+                        quad_coords = None
+                        for sub in elem.iter():
+                            if strip_tag(sub.tag) == 'LatLonQuad':
+                                quad_coords = find_child_text(sub, 'coordinates')
+                                break
+                        if quad_coords:
+                            lats, lons = [], []
+                            for pt in quad_coords.split():
+                                parts = pt.split(',')
+                                if len(parts) >= 2:
+                                    lons.append(float(parts[0]))
+                                    lats.append(float(parts[1]))
+                            if lats and lons:
+                                north, south = max(lats), min(lats)
+                                east, west = max(lons), min(lons)
 
-                        if href and north and south and east and west:
-                            href_clean = href.replace('\\', '/')
+                    if href and north and south and east and west:
+                        href_clean = href.replace('\\', '/')
+                        raw_img_bytes = None
+                        if z is not None:
                             matched_img = None
                             if href_clean in namelist:
                                 matched_img = href_clean
@@ -206,95 +214,99 @@ def load_geo_sensitive_kmz(file_path, remove_white_bg=False):
                                     if os.path.basename(name_in_zip) == base_href:
                                         matched_img = name_in_zip
                                         break
-
                             if matched_img:
                                 raw_img_bytes = z.read(matched_img)
-                                img = Image.open(io.BytesIO(raw_img_bytes)).convert("RGBA")
-                                img.thumbnail((2200, 2200), Image.Resampling.LANCZOS)
+                        else:
+                            # 支援直接讀取根目錄或 files/ 子目錄下的圖片
+                            if os.path.exists(href_clean):
+                                raw_img_bytes = open(href_clean, "rb").read()
+                            elif os.path.exists(os.path.basename(href_clean)):
+                                raw_img_bytes = open(os.path.basename(href_clean), "rb").read()
 
-                                if remove_white_bg:
-                                    arr = np.array(img)
-                                    # 將接近純白或極淺灰背景轉為透明，保留敏感區色塊與邊界線
-                                    white_mask = (arr[:, :, 0] > 240) & (arr[:, :, 1] > 240) & (arr[:, :, 2] > 240)
-                                    arr[white_mask, 3] = 0
-                                    img = Image.fromarray(arr)
+                        if raw_img_bytes:
+                            img = Image.open(io.BytesIO(raw_img_bytes)).convert("RGBA")
+                            img.thumbnail((2200, 2200), Image.Resampling.LANCZOS)
 
-                                buf = io.BytesIO()
-                                img.save(buf, format="PNG", optimize=True)
-                                b64_str = base64.b64encode(buf.getvalue()).decode('utf-8')
-                                overlays.append({
-                                    "name": ov_name,
-                                    "image_uri": f"data:image/png;base64,{b64_str}",
-                                    "bounds": [[float(south), float(west)], [float(north), float(east)]]
-                                })
+                            if remove_white_bg:
+                                arr = np.array(img)
+                                white_mask = (arr[:, :, 0] > 240) & (arr[:, :, 1] > 240) & (arr[:, :, 2] > 240)
+                                arr[white_mask, 3] = 0
+                                img = Image.fromarray(arr)
 
-        # B. 同步檢查是否含有 Placemark Polygon / LineString 向量區塊
-        if file_path.lower().endswith('.kml'):
-            root = ET.parse(file_path).getroot()
+                            buf = io.BytesIO()
+                            img.save(buf, format="PNG", optimize=True)
+                            b64_str = base64.b64encode(buf.getvalue()).decode('utf-8')
+                            overlays.append({
+                                "name": ov_name,
+                                "image_uri": f"data:image/png;base64,{b64_str}",
+                                "bounds": [[float(south), float(west)], [float(north), float(east)]]
+                            })
 
-        for elem in root.iter():
-            if strip_tag(elem.tag) == 'Placemark':
-                pm_name = find_child_text(elem, 'name') or "地質敏感區範圍"
-                pm_desc = find_child_text(elem, 'description') or ""
-                for sub in elem.iter():
-                    st_tag = strip_tag(sub.tag)
-                    if st_tag in ['Polygon', 'LineString']:
-                        coord_text = find_child_text(sub, 'coordinates')
-                        if coord_text:
-                            pts = []
-                            for token in coord_text.strip().split():
-                                c_parts = token.split(',')
-                                if len(c_parts) >= 2:
-                                    pts.append([float(c_parts[1]), float(c_parts[0])])
-                            if len(pts) >= 2:
-                                polygons.append({
-                                    "name": pm_name,
-                                    "desc": pm_desc,
-                                    "type": st_tag,
-                                    "locations": pts
-                                })
-    except Exception as e:
-        st.error(f"解析地質敏感區圖資時發生異常: {e}")
+            # B. 解析向量 Polygon / LineString
+            for elem in root.iter():
+                if strip_tag(elem.tag) == 'Placemark':
+                    pm_name = find_child_text(elem, 'name') or "地質敏感區範圍"
+                    pm_desc = find_child_text(elem, 'description') or ""
+                    for sub in elem.iter():
+                        st_tag = strip_tag(sub.tag)
+                        if st_tag in ['Polygon', 'LineString']:
+                            coord_text = find_child_text(sub, 'coordinates')
+                            if coord_text:
+                                pts = []
+                                for token in coord_text.strip().split():
+                                    c_parts = token.split(',')
+                                    if len(c_parts) >= 2:
+                                        pts.append([float(c_parts[1]), float(c_parts[0])])
+                                if len(pts) >= 2:
+                                    polygons.append({
+                                        "name": pm_name,
+                                        "desc": pm_desc,
+                                        "type": st_tag,
+                                        "locations": pts
+                                    })
+            if z is not None:
+                z.close()
+        except Exception as e:
+            st.error(f"解析地質敏感區圖資 ({file_path}) 時發生異常: {e}")
 
     return overlays, polygons
 
 def add_geo_sensitive_to_map(folium_map, overlays, polygons, opacity=0.70, show_default=True):
-    """將地質敏感區圖層掛載至 Folium 地圖"""
+    """將多個分割後的地質敏感區圖層統一掛載至單一 FeatureGroup 開關中"""
+    if not overlays and not polygons:
+        return
+    fg_geo = folium.FeatureGroup(name="🧱 南澳工務段地質敏感區", show=show_default)
     for ov in overlays:
         folium.raster_layers.ImageOverlay(
             image=ov["image_uri"],
             bounds=ov["bounds"],
             opacity=opacity,
-            name="🧱 南澳工務段地質敏感區",
             interactive=True,
             cross_origin=False,
-            zindex=2,
-            show=show_default
-        ).add_to(folium_map)
+            zindex=2
+        ).add_to(fg_geo)
 
-    if polygons:
-        fg_poly = folium.FeatureGroup(name="🧱 南澳工務段地質敏感區(向量)", show=show_default)
-        for poly in polygons:
-            popup_txt = f"<b>{poly['name']}</b><br>{poly['desc']}"
-            if poly["type"] == "Polygon":
-                folium.Polygon(
-                    locations=poly["locations"],
-                    color="#d97706",
-                    weight=2.5,
-                    fill=True,
-                    fill_color="#f59e0b",
-                    fill_opacity=opacity * 0.6,
-                    popup=folium.Popup(popup_txt, max_width=320)
-                ).add_to(fg_poly)
-            else:
-                folium.PolyLine(
-                    locations=poly["locations"],
-                    color="#d97706",
-                    weight=3,
-                    opacity=opacity,
-                    popup=folium.Popup(popup_txt, max_width=320)
-                ).add_to(fg_poly)
-        fg_poly.add_to(folium_map)
+    for poly in polygons:
+        popup_txt = f"<b>{poly['name']}</b><br>{poly['desc']}"
+        if poly["type"] == "Polygon":
+            folium.Polygon(
+                locations=poly["locations"],
+                color="#d97706",
+                weight=2.5,
+                fill=True,
+                fill_color="#f59e0b",
+                fill_opacity=opacity * 0.6,
+                popup=folium.Popup(popup_txt, max_width=320)
+            ).add_to(fg_geo)
+        else:
+            folium.PolyLine(
+                locations=poly["locations"],
+                color="#d97706",
+                weight=3,
+                opacity=opacity,
+                popup=folium.Popup(popup_txt, max_width=320)
+            ).add_to(fg_geo)
+    fg_geo.add_to(folium_map)
 
 @st.cache_data
 def load_mileages():
@@ -329,7 +341,7 @@ def load_mileages():
 df = load_data()
 df_disasters = load_kmz()
 df_mileages, is_network_link, found_mileage_file = load_mileages()
-geo_sensitive_file = find_geo_sensitive_file()
+geo_sensitive_files = find_geo_sensitive_files()
 
 if df.empty:
     st.error(f"找不到邊坡資料檔案：{DATA_FILE}")
@@ -632,9 +644,8 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
         folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Earth", name="🛰️ 衛星空照圖").add_to(m_loc)
         folium.TileLayer(tiles="OpenStreetMap", name="🗺️ 標準電子地圖").add_to(m_loc)
 
-        # 同步支援於邊坡定位圖台切換「南澳工務段地質敏感區」
-        if geo_sensitive_file:
-            gs_overlays, gs_polygons = load_geo_sensitive_kmz(geo_sensitive_file, remove_white_bg=True)
+        if geo_sensitive_files:
+            gs_overlays, gs_polygons = load_geo_sensitive_kmz(geo_sensitive_files, remove_white_bg=True)
             add_geo_sensitive_to_map(m_loc, gs_overlays, gs_polygons, opacity=0.65, show_default=False)
 
         cmap = {"A": "#c05646", "B": "#d9822b", "C+": "#7c3aed", "C": "#4A6B82", "D": "#52796f", "其他": "#64748b"}
@@ -670,12 +681,11 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
                 search_res_ph.info("💡 *若要啟用精準點圖查詢，請確保系統目錄下包含 `省道里程坐標(里程牌標誌).csv`*")
 
 # ==============================================================================
-# 頁面 4：災害斑點圖 (整合「南澳工務段地質敏感區」底圖疊加與委員審查比對控制器)
+# 頁面 4：災害斑點圖 (支援多分割地質敏感區 KMZ 無縫拼接與委員審查比對控制器)
 # ==============================================================================
 elif st.session_state.bottom_tab == "🔥 災害斑點圖":
     st.markdown("<div class='map-sub-title notranslate' translate='no'>歷次災害斑點圖 ✕ 南澳工務段地質敏感區疊圖比對</div>", unsafe_allow_html=True)
     
-    # 委員審查比對專用控制列
     with st.container(border=True):
         ctrl_c1, ctrl_c2, ctrl_c3, ctrl_c4 = st.columns([1.2, 1.3, 1.5, 1.2])
         with ctrl_c1:
@@ -688,10 +698,11 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
             focus_geo_bounds = st.checkbox("🎯 視角鎖定地質敏感區全區", value=False)
 
     gs_overlays, gs_polygons = [], []
-    if geo_sensitive_file:
-        gs_overlays, gs_polygons = load_geo_sensitive_kmz(geo_sensitive_file, remove_white_bg=transparent_white)
+    if geo_sensitive_files:
+        gs_overlays, gs_polygons = load_geo_sensitive_kmz(geo_sensitive_files, remove_white_bg=transparent_white)
+        st.caption(f"✅ 已載入地質敏感區圖資檔案：`{', '.join(geo_sensitive_files)}`（共 {len(gs_overlays)} 幅影像圖層）")
     else:
-        st.warning("⚠️ **尚未偵測到地質敏感區 KMZ 檔案**：請將您的地質敏感區 `.kmz` 檔案（例如命名為 `南澳工務段地質敏感區.kmz`）上傳至 GitHub 專案根目錄，系統即會自動載入疊圖！")
+        st.warning("⚠️ **尚未偵測到地質敏感區 KMZ 檔案**：請將分割後的 `part1`、`part2` 或輕量版 `.kmz` 上傳至 GitHub 專案根目錄，系統將自動合併疊圖！")
 
     search_res_ph = st.empty()
     
@@ -704,18 +715,19 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         loc_strings = {"title": "📍 定位您的位置", "popup": "您目前的位置", "outsideMapBoundsMsg": "您位於地圖邊界之外", "error": "定位失敗：請確認手機已開啟GPS定位權限，或目前環境無遮蔽。"}
         LocateControl(auto_start=False, flyTo=True, locateOptions=loc_options, strings=loc_strings).add_to(m_dis)
         
-        # 三種底圖供審查委員切換
         folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}", attr="Google Earth", name="🛰️ 衛星空照圖").add_to(m_dis)
         folium.TileLayer(tiles="https://mt1.google.com/vt/lyrs=p&x={x}&y={y}&z={z}", attr="Google Terrain", name="⛰️ 地形等高線圖").add_to(m_dis)
         folium.TileLayer(tiles="OpenStreetMap", name="🗺️ 標準電子地圖").add_to(m_dis)
         
-        # 1. 優先鋪設「南澳工務段地質敏感區」底圖 (位於災點下方)
         if show_geo_layer and (gs_overlays or gs_polygons):
             add_geo_sensitive_to_map(m_dis, gs_overlays, gs_polygons, opacity=geo_opacity, show_default=True)
             if focus_geo_bounds and gs_overlays:
-                m_dis.fit_bounds(gs_overlays[0]["bounds"])
+                all_south = min(ov["bounds"][0][0] for ov in gs_overlays)
+                all_west  = min(ov["bounds"][0][1] for ov in gs_overlays)
+                all_north = max(ov["bounds"][1][0] for ov in gs_overlays)
+                all_east  = max(ov["bounds"][1][1] for ov in gs_overlays)
+                m_dis.fit_bounds([[all_south, all_west], [all_north, all_east]])
 
-        # 2. 疊加 112～115 年歷次災害斑點 (位於敏感區上方，支援按年度開關)
         yp = {"112年": "#457b9d", "113年": "#e63946", "114年": "#f77f00", "115年": "#2a9d8f"}
         if not df_disasters.empty:
             for yr in sorted(df_disasters['年度'].unique()):
