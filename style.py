@@ -20,7 +20,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
             --dock-border: #e2e8f0;
             --dock-inactive: #94a3b8;
             --dock-active: #f97316;
-            --topbar-bg: #1b2a47;
             --footer-text: #4A6B82;
             --link-color: #2563eb;
         """
@@ -41,7 +40,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
             --dock-border: #1f2937;
             --dock-inactive: #64748b;
             --dock-active: #fb923c;
-            --topbar-bg: #0f172a;
             --footer-text: #60a5fa;
             --link-color: #60a5fa;
         """
@@ -118,62 +116,30 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     html, body, [class*="css"] { color: var(--text-main) !important; }
     .stApp { background-color: var(--bg-main) !important; color: var(--text-main) !important; }
     [class*="immersive-translate"], .immersive-translate-target-wrapper { display: none !important; height: 0 !important; }
-    #MainMenu, footer, header[data-testid="stHeader"] { visibility: hidden !important; height: 0 !important; }
     
-    /* 預留頂部深藍 App Bar (54px) 與底部白底橘線導航列 (76px) 的安全空間 */
+    /* 隱藏原生 Header 以釋放空間 */
+    #MainMenu, header[data-testid="stHeader"] { visibility: hidden !important; height: 0 !important; }
+    
     .block-container {
-        max-width: 1100px !important;
+        max-width: 1280px !important;
         width: 100% !important;
-        padding-top: 62px !important;
-        padding-bottom: 88px !important;
-        padding-left: clamp(8px, 2vw, 20px) !important;
-        padding-right: clamp(8px, 2vw, 20px) !important;
+        padding-top: clamp(2.8rem, 4.5vh, 3.5rem) !important;
+        padding-bottom: 95px !important;
+        padding-left: clamp(8px, 2vw, 24px) !important;
+        padding-right: clamp(8px, 2vw, 24px) !important;
         margin: 0 auto !important;
     }
 
-    /* ===== 1. 截圖風格：頂部固定深海軍藍 App Bar (Top App Bar) ===== */
-    .mobile-app-topbar {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        height: 52px !important;
-        background-color: var(--topbar-bg) !important;
-        color: #ffffff !important;
-        z-index: 999980 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        padding: 0 14px !important;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22) !important;
-    }
-    .topbar-left { display: flex; align-items: center; gap: 8px; }
-    .topbar-title {
-        font-size: clamp(16px, 2.5vw, 19px) !important;
-        font-weight: 800 !important;
-        color: #ffffff !important;
-        letter-spacing: 1px !important;
-        margin: 0 !important;
-        white-space: nowrap !important;
-    }
-    .topbar-right { display: flex; align-items: center; gap: 6px; }
-    .topbar-pill-btn {
-        display: inline-flex;
-        align-items: center;
-        background: rgba(255, 255, 255, 0.14);
-        color: #f8fafc !important;
-        font-size: 11.5px !important;
-        font-weight: 700 !important;
-        text-decoration: none !important;
-        padding: 4px 9px;
-        border-radius: 6px;
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        white-space: nowrap;
-        transition: background 0.15s;
-    }
-    .topbar-pill-btn:hover { background: rgba(255, 255, 255, 0.26); }
+    /* 恢復原本的頂部立體 Logo 標題區塊 */
+    .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 12px !important; margin-top: 0px !important; margin-bottom: 20px !important; width: 100% !important; }
+    .app-top-logo { width: clamp(50px, 12vw, 80px) !important; height: auto !important; margin-bottom: 0px !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.3)) !important; }
+    .title-wrapper { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap: 10px; width: 100%; }
+    .system-title { font-size: clamp(18px, 3.5vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 0.5px; color: #4A6B82 !important; margin: 0 !important; text-align: left !important; }
+    
+    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(11px, 1.2vw, 13px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 4px 10px; border-radius: 16px; margin: 0; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); white-space: nowrap; }
+    .manual-link-btn:hover { background-color: #bae6fd; color: #0c4a6e !important; transform: translateY(-1px); box-shadow: 0 3px 5px rgba(0,0,0,0.1); }
 
-    /* ===== 2. 截圖風格：完美釘選於手機畫面最下方的「白底 + 頂部橘線導航列」 ===== */
+    /* 保留底部導航列設計 */
     div[data-testid="stElementContainer"]:has(#bottom-nav-anchor),
     div.element-container:has(#bottom-nav-anchor) {
         height: 0 !important;
@@ -182,7 +148,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
         display: block !important;
     }
 
-    /* 透過 #bottom-nav-anchor 強制鎖定緊隨其後的 stHorizontalBlock 釘在畫面底部 */
     div[data-testid="stElementContainer"]:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"],
     div.element-container:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] {
         position: fixed !important;
@@ -204,7 +169,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
         box-shadow: 0 -3px 14px rgba(0, 0, 0, 0.08) !important;
     }
 
-    /* 強制手機端 5 個按鈕絕對水平並排 (絕不垂直堆疊！) */
     div[data-testid="stElementContainer"]:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"],
     div.element-container:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] > div {
         flex: 1 1 20% !important;
@@ -214,7 +178,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
         margin: 0 !important;
     }
 
-    /* 底部導航按鈕本體：去除外框，模擬原生 iOS/Android Tab Bar */
     div[data-testid="stElementContainer"]:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] button,
     div.element-container:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] button {
         width: 100% !important;
@@ -234,7 +197,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
         transition: all 0.12s ease !important;
     }
 
-    /* 未選中狀態 (灰色圖示與文字) */
     div[data-testid="stElementContainer"]:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] button[kind="secondary"] p,
     div.element-container:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] button[kind="secondary"] p {
         color: var(--dock-inactive) !important;
@@ -247,7 +209,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
         filter: grayscale(100%) opacity(0.72) !important;
     }
 
-    /* 選中狀態 (完全比照截圖：頂部亮橘色橫條 + 橘色文字與圖示！) */
     div[data-testid="stElementContainer"]:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] button[kind="primary"],
     div.element-container:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] button[kind="primary"] {
         background: linear-gradient(180deg, rgba(249, 115, 22, 0.08) 0%, transparent 100%) !important;
@@ -265,14 +226,12 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
         filter: none !important;
     }
 
-    /* 將第一行 Emoji 圖示放大為 20px，第二行文字維持 12px */
     div[data-testid="stElementContainer"]:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] button p::first-line,
     div.element-container:has(#bottom-nav-anchor) + div[data-testid="stHorizontalBlock"] button p::first-line {
         font-size: 20px !important;
         line-height: 24px !important;
     }
 
-    /* ===== 3. 截圖風格：懸浮圓角搜尋框與一般內容按鈕 ===== */
     .floating-search-bar {
         background: var(--card-bg);
         border-radius: 12px;
@@ -282,7 +241,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
         margin-bottom: 10px;
     }
 
-    /* 6格分級快篩按鈕：手機端 3x2 網格、平板 6x1 並排，超大好按 */
     div[data-testid="stElementContainer"]:has(#grade-pills-anchor) + div[data-testid="stHorizontalBlock"] {
         display: flex !important;
         flex-direction: row !important;
@@ -300,7 +258,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
         }
     }
 
-    /* 一般業務按鈕樣式 */
     button[kind="secondary"] { background-color: var(--btn-sec-bg) !important; color: var(--btn-sec-text) !important; border: 1.5px solid var(--btn-sec-border) !important; font-weight: 800 !important; border-radius: 10px !important; min-height: 42px !important; }
     button[kind="primary"] { background-color: #4A6B82 !important; border: 1.5px solid #3E5C76 !important; color: #ffffff !important; font-weight: 800 !important; border-radius: 10px !important; min-height: 42px !important; }
 
@@ -321,44 +278,79 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     .embed-map-box { border-radius: 12px; overflow: hidden; border: 1px solid var(--card-border) !important; margin: 6px 0; }
     .coord-status-bar { background: rgba(15, 23, 42, 0.82); color: #f8fafc; font-family: monospace; font-size: 12.5px; font-weight: 700; padding: 5px 12px; border-radius: 6px; text-align: right; margin-top: -6px; margin-bottom: 6px; }
 
-    .app-official-footer-bottom { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; margin-top: 10px !important; margin-bottom: 6px !important; padding: 4px 8px !important; width: 100% !important; }
-    .footer-title-row { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 6px !important; margin-bottom: 2px !important; flex-wrap: nowrap !important; }
-    .app-official-logo { height: 20px !important; width: auto !important; flex-shrink: 0 !important; }
-    .app-official-text { font-size: clamp(11px, 2.5vw, 13.5px) !important; font-weight: 900 !important; color: var(--footer-text) !important; white-space: nowrap !important; }
-    .app-official-source { font-size: 11px !important; font-weight: 600 !important; color: var(--text-muted) !important; text-align: center !important; }
-    .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; }
+    /* 恢復頁尾的顯示與排版 */
+    .app-official-footer-bottom { 
+        display: flex !important; 
+        flex-direction: column !important; 
+        align-items: center !important; 
+        justify-content: center !important; 
+        margin-top: 30px !important; 
+        margin-bottom: 26px !important; 
+        padding: 8px 12px !important; 
+        background: transparent !important; 
+        border: none !important; 
+        width: 100% !important; 
+    }
+    .footer-title-row { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 8px !important; margin-bottom: 8px !important; flex-wrap: nowrap !important; width: 100% !important; }
+    .app-official-logo { height: clamp(24px, 5.0vw, 36px) !important; width: auto !important; flex-shrink: 0 !important; }
+    .app-official-text { font-size: clamp(11.5px, 3.2vw, 17px) !important; font-weight: 900 !important; color: var(--footer-text) !important; white-space: nowrap !important; letter-spacing: 0px !important; }
+    .app-official-source { font-size: 13px !important; font-weight: 600 !important; color: var(--text-muted) !important; line-height: 1.6 !important; text-align: center !important; }
+    .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; font-weight: 700 !important; margin-left: 4px !important; }
 </style>
 """
     style_part = css_template.replace("__THEME_VARS__", theme_vars)
     return (splash_overlay_html if show_splash else "") + style_part
 
-def render_top_logo(active_title: str = "南澳邊坡防災圖台") -> str:
-    manual_link_1 = ""
-    manual_link_2 = ""
+# 加入 *args, **kwargs 防呆參數，避免 app.py 傳遞字串導致程式崩潰
+def render_top_logo(*args, **kwargs) -> str:
+    manual_link_1 = '<div style="color:#ef4444; font-size:12px; font-weight:bold; margin-top:6px;">⚠️ 缺教學手冊PDF</div>'
+    manual_link_2 = '<div style="color:#ef4444; font-size:12px; font-weight:bold; margin-top:6px;">⚠️ 缺巡檢機制PDF</div>'
+    
     try:
         pdf_files = [f for f in os.listdir('.') if f.lower().endswith('.pdf')]
+        
         for f in pdf_files:
             if '教學手冊' in f or ('手冊' in f and '懶人包' not in f and '路巡' not in f):
                 with open(f, "rb") as pdf_file:
                     b64_pdf = base64.b64encode(pdf_file.read()).decode()
-                manual_link_1 = f'<a href="data:application/pdf;base64,{b64_pdf}" download="{f}" target="_blank" class="topbar-pill-btn">📘 手冊</a>'
+                href = f"data:application/pdf;base64,{b64_pdf}"
+                manual_link_1 = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 操作與養護巡查作業教學手冊</a>'
                 break
+
         for f in pdf_files:
             if '懶人包' in f or '路巡' in f or '巡檢' in f:
                 with open(f, "rb") as pdf_file:
                     b64_pdf = base64.b64encode(pdf_file.read()).decode()
-                manual_link_2 = f'<a href="data:application/pdf;base64,{b64_pdf}" download="{f}" target="_blank" class="topbar-pill-btn">📘 115巡檢</a>'
+                href = f"data:application/pdf;base64,{b64_pdf}"
+                manual_link_2 = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 南澳段路巡邊坡巡檢機制(115年最新修訂)</a>'
                 break
-    except Exception:
-        pass
+    except Exception as e:
+        manual_link_1 = f'<div style="color:#ef4444; font-size:12px; margin-top:6px;">⚠️ PDF 異常: {e}</div>'
+        manual_link_2 = ""
 
+    # 恢復原本的 SVG 立體 Logo 與排版
     return f"""
-    <div class="mobile-app-topbar notranslate" translate="no">
-      <div class="topbar-left">
-        <span style="font-size:20px; line-height:1;">☰</span>
-        <span class="topbar-title">{active_title}</span>
-      </div>
-      <div class="topbar-right">
+    <div class="system-header-box notranslate" translate="no">
+      <svg class="app-top-logo" viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="gB" x1="60" y1="150" x2="340" y2="240" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#52796f" stop-opacity="0.95"/><stop offset="100%" stop-color="#2d4a43" stop-opacity="0.98"/></linearGradient>
+          <linearGradient id="gP" x1="160" y1="70" x2="200" y2="210" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#4A6B82" stop-opacity="0.92"/><stop offset="100%" stop-color="#1e293b" stop-opacity="0.98"/></linearGradient>
+          <linearGradient id="gS" x1="110" y1="95" x2="280" y2="180" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#38bdf8" stop-opacity="0.85"/><stop offset="100%" stop-color="#0284c7" stop-opacity="0.95"/></linearGradient>
+          <filter id="dS" x="-10%" y="-10%" width="130%" height="130%"><feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#000000" flood-opacity="0.18"/></filter>
+        </defs>
+        <g filter="url(#dS)">
+          <g stroke="#94a3b8" stroke-width="1.1" stroke-opacity="0.65"><path d="M40 190 L200 265 L360 190 L200 115 Z" fill="rgba(241, 245, 249, 0.45)"/><path d="M80 171 L240 246"/><path d="M120 153 L280 228"/><path d="M160 134 L320 209"/><path d="M120 228 L280 153"/><path d="M80 209 L240 134"/><path d="M160 246 L320 171"/></g>
+          <path d="M20 198 L380 198" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5 4" stroke-opacity="0.85"/>
+          <path d="M60 180 L200 245 L340 180 L340 148 L200 212 L60 148 Z" fill="url(#gB)" stroke="#3f5e56" stroke-width="1.8"/>
+          <path d="M60 148 L200 212 L340 148 L288 75 L175 75 L60 148 Z" fill="url(#gP)" stroke="#2b3e4f" stroke-width="2.0"/>
+          <path d="M115 135 Q185 180 268 135 L280 98 Q195 130 158 98 Z" fill="url(#gS)" stroke="#0284c7" stroke-width="2.2"/>
+          <path d="M175 75 L288 75 L340 148" stroke="#ef4444" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M110 132 Q190 176 276 132" stroke="#dc2626" stroke-width="3.8" stroke-linecap="round"/>
+          <path d="M100 144 Q190 194 280 140" stroke="#38bdf8" stroke-width="3.2" stroke-linecap="round"/>
+        </g>
+      </svg>
+      <div class="title-wrapper">
+        <div class="system-title">南澳邊坡全生命週期資料庫</div>
         {manual_link_1}
         {manual_link_2}
       </div>
@@ -366,10 +358,30 @@ def render_top_logo(active_title: str = "南澳邊坡防災圖台") -> str:
     """
 
 def render_footer() -> str:
+    logo_svg = '<svg class="app-official-logo notranslate" viewBox="0 0 818 138" fill="none" xmlns="http://www.w3.org/2000/svg" translate="no"><path d="M409 69C409 30.89 439.89 0 478 0C516.11 0 547 30.89 547 69C547 107.11 516.11 138 478 138C439.89 138 409 107.11 409 69Z" fill="#E62117"/><path d="M478 14C447.62 14 423 38.62 423 69C423 99.38 447.62 124 478 124C508.38 124 533 99.38 533 69C533 38.62 508.38 14 478 14ZM478 110C455.36 110 437 91.64 437 69C437 46.36 455.36 28 478 28C500.64 28 519 46.36 519 69C519 91.64 500.64 110 478 110Z" fill="white"/><path d="M0 24L380 24C395 24 402 36 388 48L70 48C50 48 30 40 0 24Z" fill="#1E50A2"/><path d="M818 24L438 24C423 24 416 36 430 48L748 48C768 48 788 40 818 24Z" fill="#1E50A2"/><path d="M60 56L370 56C382 56 388 66 376 76L120 76C100 76 80 70 60 56Z" fill="#0080FF"/><path d="M758 56L448 56C436 56 430 66 442 76L698 76C718 76 738 70 758 56Z" fill="#0080FF"/><path d="M120 86L360 86C370 86 375 94 365 102L170 102C150 102 135 96 120 86Z" fill="#00BFFF"/><path d="M698 86L458 86C448 86 443 94 453 102L648 102C668 102 683 96 698 86Z" fill="#00BFFF"/></svg>'
+    
+    logo_render = logo_svg
+    for possible_logo in ["LOGO.webp", "LOGO.png", "logo.png", "logo.webp"]:
+        if os.path.exists(possible_logo):
+            try:
+                with open(possible_logo, "rb") as f:
+                    b64_val = base64.b64encode(f.read()).decode()
+                    ext = "webp" if possible_logo.endswith("webp") else "png"
+                    logo_render = f'<img class="app-official-logo notranslate" src="data:image/{ext};base64,{b64_val}" alt="公路局LOGO" translate="no" />'
+                    break
+            except Exception:
+                pass
+
+    # 恢復原本的官方資料來源與連結
     return (
         "<div class='app-official-footer-bottom notranslate' translate='no'>"
         "  <div class='footer-title-row'>"
-        "    <span class='app-official-text'>交通部公路局東區養護工程分局南澳工務段</span>"
+        f"    {logo_render}"
+        "    <span class='app-official-text notranslate' translate='no'>交通部公路局東區養護工程分局南澳工務段</span>"
+        "  </div>"
+        "  <div class='app-official-source notranslate' translate='no'>"
+        "    本網頁資料來源：邊坡全生命週期管理系統 <a href='https://slope.thb.gov.tw/thbslope' target='_blank' rel='noopener noreferrer'>https://slope.thb.gov.tw/thbslope</a><br/>"
+        "    公路局圖說公路平台-圖台 <a href='https://eroad.thb.gov.tw/DGOHForeground/Map/Index' target='_blank' rel='noopener noreferrer'>https://eroad.thb.gov.tw/DGOHForeground/Map/Index</a>"
         "  </div>"
         "</div>"
     )
