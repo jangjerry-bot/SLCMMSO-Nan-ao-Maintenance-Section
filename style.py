@@ -5,7 +5,7 @@ import base64
 def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     if is_light:
         theme_vars = """
-            --bg-main: #f8fafc;
+            --bg-main: #f1f5f9;
             --text-main: #0f172a;
             --text-muted: #64748b;
             --card-bg: #ffffff;
@@ -13,9 +13,11 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
             --input-bg: #ffffff;
             --input-border: #94a3b8;
             --input-text: #0f172a;
-            --btn-sec-bg: #f1f5f9;
-            --btn-sec-text: #0f172a;
+            --btn-sec-bg: #ffffff;
+            --btn-sec-text: #1e293b;
             --btn-sec-border: #cbd5e1;
+            --dock-bg: rgba(255, 255, 255, 0.95);
+            --dock-border: #cbd5e1;
             --footer-text: #4A6B82;
             --link-color: #2563eb;
         """
@@ -23,16 +25,18 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
         theme_vars = """
             --bg-main: #0b0f19;
             --text-main: #f8fafc;
-            --text-muted: #64748b;
-            --card-bg: rgba(255, 255, 255, 0.04);
-            --card-border: rgba(255, 255, 255, 0.12);
+            --text-muted: #94a3b8;
+            --card-bg: #1e293b;
+            --card-border: #334155;
             --input-bg: #ffffff;
             --input-border: #cbd5e1;
-            --input-text: #64748b;
+            --input-text: #0f172a;
             --btn-sec-bg: #1e293b;
             --btn-sec-text: #f1f5f9;
-            --btn-sec-border: #334155;
-            --footer-text: #4A6B82;
+            --btn-sec-border: #475569;
+            --dock-bg: rgba(15, 23, 42, 0.95);
+            --dock-border: #334155;
+            --footer-text: #60a5fa;
             --link-color: #60a5fa;
         """
 
@@ -88,7 +92,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     .geo-splash-center { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; text-align: center !important; padding: 20px !important; }
     .geo-hud-badge { font-family: monospace !important; font-size: 11px !important; color: #38bdf8 !important; background: rgba(56, 189, 248, 0.1) !important; border: 1px solid rgba(56, 189, 248, 0.3) !important; padding: 4px 12px !important; border-radius: 20px !important; letter-spacing: 2px !important; margin-bottom: 10px !important; animation: titleFadeIn 0.5s ease-out !important; }
     .geo-splash-svg { width: clamp(270px, 48vw, 390px) !important; height: auto !important; filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.7)) !important; }
-    
     .geo-mesh-grid { animation: meshPop 0.6s ease-out; transform-origin: center; transform-box: fill-box; }
     .geo-base-layer { animation: modelRise 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-box: fill-box; }
     .geo-slope-prism { opacity: 0; animation: modelRise 0.6s 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards; transform-box: fill-box; }
@@ -98,7 +101,6 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     .geo-red-crest { stroke-dasharray: 220; stroke-dashoffset: 220; animation: drawLine 0.8s 0.4s ease-out forwards; }
     .geo-red-shear { stroke-dasharray: 240; stroke-dashoffset: 240; animation: drawLine 0.9s 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards, shearPulse 0.6s 1.4s ease-in-out infinite alternate; }
     .geo-slice-line { opacity: 0; animation: sliceScan 1.4s 0.5s ease-in-out forwards; }
-    
     .geo-splash-title { color: #f8fafc !important; font-size: clamp(21px, 3vw, 28px) !important; font-weight: 900 !important; letter-spacing: 2.5px !important; margin-top: 14px !important; animation: titleFadeIn 0.7s ease-out !important; }
     .geo-splash-sub { color: #94a3b8 !important; font-size: clamp(10px, 1.3vw, 12px) !important; font-weight: 700 !important; letter-spacing: 2.2px !important; margin-top: 6px !important; animation: titleFadeIn 0.9s ease-out !important; }
     .geo-progress-bar { width: 180px; height: 3px; background: rgba(255,255,255,0.1); border-radius: 3px; margin-top: 16px; overflow: hidden; }
@@ -121,56 +123,119 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     [class*="immersive-translate"], .immersive-translate-target-wrapper { display: none !important; height: 0 !important; }
     #MainMenu, footer { visibility: hidden; }
     
-    .block-container { max-width: 100% !important; width: 100% !important; padding-top: clamp(3.5rem, 6vh, 4.5rem) !important; padding-bottom: clamp(2.5rem, 4vh, 3.5rem) !important; padding-left: clamp(10px, 2.5vw, 32px) !important; padding-right: clamp(10px, 2.5vw, 32px) !important; margin: 0 auto !important; }
+    /* 緊湊型 App-Shell 頂部與底部安全邊距 (預留底部固定導航列 85px 空間) */
+    .block-container {
+        max-width: 1280px !important;
+        width: 100% !important;
+        padding-top: clamp(2.8rem, 4.5vh, 3.5rem) !important;
+        padding-bottom: 95px !important;
+        padding-left: clamp(8px, 2vw, 24px) !important;
+        padding-right: clamp(8px, 2vw, 24px) !important;
+        margin: 0 auto !important;
+    }
     
-    .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 12px !important; margin-top: 0px !important; margin-bottom: 20px !important; width: 100% !important; }
-    .app-top-logo { width: clamp(50px, 12vw, 80px) !important; height: auto !important; margin-bottom: 0px !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.3)) !important; }
+    /* 頂部緊湊標題列 */
+    .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: flex-start !important; gap: 10px !important; margin: 0 0 8px 0 !important; width: 100% !important; }
+    .app-top-logo { width: clamp(42px, 8vw, 60px) !important; height: auto !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 6px rgba(56, 189, 248, 0.25)) !important; }
+    .title-wrapper { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 6px; width: 100%; }
+    .system-title { font-size: clamp(17px, 2.6vw, 24px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 0.5px; color: #4A6B82 !important; margin: 0 4px 0 0 !important; white-space: nowrap; }
     
-    .title-wrapper { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 8px; width: 100%; }
-    .system-title { font-size: clamp(18px, 3.2vw, 28px) !important; line-height: 1.2 !important; font-weight: 900 !important; letter-spacing: 0.5px; color: #4A6B82 !important; margin: 0 4px 0 0 !important; text-align: left !important; white-space: nowrap; }
-    
-    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(11px, 1.15vw, 13px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 4px 10px; border-radius: 16px; margin: 0; border: 1px solid #bae6fd; transition: all 0.2s ease; box-shadow: 0 1px 3px rgba(0,0,0,0.05); white-space: nowrap; }
-    .manual-link-btn:hover { background-color: #bae6fd; color: #0c4a6e !important; transform: translateY(-1px); box-shadow: 0 3px 5px rgba(0,0,0,0.1); }
+    .manual-link-btn { display: inline-flex; align-items: center; justify-content: center; background-color: #e0f2fe; color: #0369a1 !important; font-size: clamp(10.5px, 1.1vw, 12.5px) !important; font-weight: 800 !important; text-decoration: none !important; padding: 3px 9px; border-radius: 14px; border: 1px solid #bae6fd; transition: all 0.15s ease; white-space: nowrap; }
+    .manual-link-btn:hover { background-color: #bae6fd; color: #0c4a6e !important; transform: translateY(-1px); }
 
-    .map-sub-title { font-size: clamp(16px, 2.4vw, 20px) !important; line-height: 1.3 !important; font-weight: 800 !important; letter-spacing: 0.8px; color: #4A6B82 !important; text-align: center !important; display: block !important; width: 100%; margin-top: 0px !important; margin-bottom: 6px !important; }
+    .map-sub-title { font-size: clamp(15px, 2.2vw, 18px) !important; font-weight: 800 !important; color: #4A6B82 !important; text-align: center !important; margin: 0 0 6px 0 !important; }
 
-    button p { font-size: 16px !important; }
-    .route-green-text { font-size: 18px !important; color: #059669 !important; font-weight: 900 !important; }
-    .detail-green-text { font-size: 22px !important; color: #059669 !important; font-weight: 900 !important; }
+    /* ===== 核心升級：手機/平板友善之大觸控按鈕與固定底部導航列 (Fixed Bottom App Dock) ===== */
+    button { min-height: 44px !important; border-radius: 10px !important; transition: all 0.15s ease !important; }
+    button p { font-size: clamp(14px, 1.8vw, 16px) !important; font-weight: 800 !important; line-height: 1.25 !important; }
+    
+    button[kind="secondary"] { background-color: var(--btn-sec-bg) !important; color: var(--btn-sec-text) !important; border: 1.5px solid var(--btn-sec-border) !important; box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important; }
+    button[kind="secondary"]:hover { border-color: #4A6B82 !important; }
+    button[kind="primary"] { background-color: #4A6B82 !important; border: 1.5px solid #3E5C76 !important; color: #ffffff !important; box-shadow: 0 4px 10px rgba(74, 107, 130, 0.35) !important; }
+
+    /* 將主導航列釘選於螢幕最底部 (Thumb-Zone Dock) */
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        z-index: 999990 !important;
+        background: var(--dock-bg) !important;
+        backdrop-filter: blur(14px) !important;
+        -webkit-backdrop-filter: blur(14px) !important;
+        border-top: 1.5px solid var(--dock-border) !important;
+        padding: 6px clamp(6px, 2vw, 24px) calc(6px + env(safe-area-inset-bottom, 0px)) clamp(6px, 2vw, 24px) !important;
+        margin: 0 !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        gap: clamp(4px, 1vw, 10px) !important;
+        box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.12) !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) > div {
+        flex: 1 1 20% !important;
+        min-width: 0 !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) button {
+        height: 54px !important;
+        min-height: 54px !important;
+        padding: 4px 2px !important;
+        border-radius: 12px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) button p {
+        font-size: clamp(11.5px, 1.5vw, 14px) !important;
+        white-space: pre-line !important;
+        text-align: center !important;
+        line-height: 1.2 !important;
+    }
+
+    /* 6格分級快篩膠囊列：允許手機端水平強制不換行或緊湊網格 */
+    div[data-testid="stHorizontalBlock"]:has(button[key^="badge_btn_"]) {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+    }
+    div[data-testid="stHorizontalBlock"]:has(button[key^="badge_btn_"]) > div {
+        flex: 1 1 calc(33.33% - 6px) !important;
+        min-width: 90px !important;
+    }
+    @media (min-width: 768px) {
+        div[data-testid="stHorizontalBlock"]:has(button[key^="badge_btn_"]) > div {
+            flex: 1 1 15% !important;
+        }
+    }
+
+    .route-green-text { font-size: 16.5px !important; color: #059669 !important; font-weight: 900 !important; }
+    .detail-green-text { font-size: 20px !important; color: #059669 !important; font-weight: 900 !important; }
 
     html body .stApp div[data-baseweb="select"], html body .stApp div[data-testid="stTextInput"] div[data-baseweb="base-input"], html body .stApp div[data-testid="stDateInput"] div[data-baseweb="input"], html body .stApp div[data-baseweb="textarea"] textarea { background-color: var(--input-bg) !important; border: 1px solid var(--input-border) !important; border-radius: 8px !important; }
     html body .stApp input[type="text"], html body .stApp textarea { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; font-size: 15px !important; font-weight: 600 !important; }
 
-    .app-card { background: var(--card-bg) !important; border-radius: 12px; padding: clamp(12px, 2vw, 18px); margin-bottom: 12px; border: 1px solid var(--card-border) !important; }
-    .detail-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--card-border) !important; font-size: clamp(14px, 1.7vw, 15px); line-height: 1.45; color: var(--text-main) !important; }
-    .detail-label { color: var(--text-muted) !important; font-weight: 600; width: 40%; }
-    .detail-value { font-weight: 600; width: 60%; text-align: right; word-break: break-all; color: var(--text-main) !important; }
+    .app-card { background: var(--card-bg) !important; border-radius: 12px; padding: clamp(10px, 1.8vw, 15px); margin-bottom: 8px; border: 1px solid var(--card-border) !important; box-shadow: 0 1px 3px rgba(0,0,0,0.03); }
+    .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--card-border) !important; font-size: 14px; line-height: 1.4; color: var(--text-main) !important; }
+    .detail-label { color: var(--text-muted) !important; font-weight: 600; width: 42%; }
+    .detail-value { font-weight: 700; width: 58%; text-align: right; word-break: break-all; color: var(--text-main) !important; }
     
-    /* 支援 115年新制 C+ 級徽章色碼 (.badge-Cplus) */
-    .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 14px; font-weight: 800; color: #ffffff !important; }
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 13px; font-weight: 800; color: #ffffff !important; }
     .badge-A { background-color: #c05646; } .badge-B { background-color: #d9822b; } .badge-Cplus { background-color: #7c3aed; } .badge-C { background-color: #4A6B82; } .badge-D { background-color: #52796f; } .badge-其他 { background-color: #64748b; }
 
-    .embed-map-box { border-radius: 12px; overflow: hidden; border: 1px solid var(--card-border) !important; margin: 12px 0; }
-    button[kind="secondary"] { background-color: var(--btn-sec-bg) !important; color: var(--btn-sec-text) !important; border: 1px solid var(--btn-sec-border) !important; font-weight: 800 !important; }
-    button[kind="primary"] { background-color: #4A6B82 !important; border-color: #3E5C76 !important; color: #ffffff !important; font-weight: 800 !important; }
+    .embed-map-box { border-radius: 12px; overflow: hidden; border: 1px solid var(--card-border) !important; margin: 6px 0; }
 
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; gap: clamp(4px, 1vw, 10px) !important; width: 100% !important; margin-top: 4px !important; margin-bottom: 16px !important; }
-    div[data-testid="stHorizontalBlock"]:has(button[key^="nav_btn_"]) > div { flex: 1 1 20% !important; min-width: 0 !important; }
-
-    .app-official-footer-bottom { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; margin-top: 30px !important; margin-bottom: 26px !important; padding: 8px 12px !important; background: transparent !important; border: none !important; width: 100% !important; }
-    .footer-title-row { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 8px !important; margin-bottom: 8px !important; flex-wrap: nowrap !important; width: 100% !important; }
-    .app-official-logo { height: clamp(24px, 5.0vw, 36px) !important; width: auto !important; flex-shrink: 0 !important; }
-    .app-official-text { font-size: clamp(11.5px, 3.2vw, 17px) !important; font-weight: 900 !important; color: var(--footer-text) !important; white-space: nowrap !important; letter-spacing: 0px !important; }
-    .app-official-source { font-size: 13px !important; font-weight: 600 !important; color: var(--text-muted) !important; line-height: 1.6 !important; text-align: center !important; }
-    .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; font-weight: 700 !important; margin-left: 4px !important; }
+    .app-official-footer-bottom { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: center !important; margin-top: 16px !important; margin-bottom: 12px !important; padding: 6px 10px !important; width: 100% !important; }
+    .footer-title-row { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 8px !important; margin-bottom: 4px !important; flex-wrap: nowrap !important; }
+    .app-official-logo { height: clamp(20px, 4vw, 28px) !important; width: auto !important; flex-shrink: 0 !important; }
+    .app-official-text { font-size: clamp(11px, 2.8vw, 15px) !important; font-weight: 900 !important; color: var(--footer-text) !important; white-space: nowrap !important; }
+    .app-official-source { font-size: 11.5px !important; font-weight: 600 !important; color: var(--text-muted) !important; line-height: 1.45 !important; text-align: center !important; }
+    .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; font-weight: 700 !important; }
 </style>
 """
     style_part = css_template.replace("__THEME_VARS__", theme_vars)
     return (splash_overlay_html if show_splash else "") + style_part
 
 def render_top_logo() -> str:
-    manual_link_1 = '<span style="color:#ef4444; font-size:12px; font-weight:bold;">⚠️ 缺教學手冊PDF</span>'
-    manual_link_2 = '<span style="color:#ef4444; font-size:12px; font-weight:bold;">⚠️ 缺巡檢機制PDF</span>'
+    manual_link_1 = '<span style="color:#ef4444; font-size:11px; font-weight:bold;">⚠️ 缺教學手冊PDF</span>'
+    manual_link_2 = '<span style="color:#ef4444; font-size:11px; font-weight:bold;">⚠️ 缺巡檢機制PDF</span>'
     
     try:
         pdf_files = [f for f in os.listdir('.') if f.lower().endswith('.pdf')]
@@ -180,7 +245,7 @@ def render_top_logo() -> str:
                 with open(f, "rb") as pdf_file:
                     b64_pdf = base64.b64encode(pdf_file.read()).decode()
                 href = f"data:application/pdf;base64,{b64_pdf}"
-                manual_link_1 = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 操作與養護巡查作業教學手冊</a>'
+                manual_link_1 = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 教學手冊</a>'
                 break
 
         for f in pdf_files:
@@ -188,10 +253,10 @@ def render_top_logo() -> str:
                 with open(f, "rb") as pdf_file:
                     b64_pdf = base64.b64encode(pdf_file.read()).decode()
                 href = f"data:application/pdf;base64,{b64_pdf}"
-                manual_link_2 = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 南澳段路巡邊坡巡檢機制(115年最新修訂)</a>'
+                manual_link_2 = f'<a href="{href}" download="{f}" target="_blank" class="manual-link-btn">📘 115年巡檢機制</a>'
                 break
     except Exception as e:
-        manual_link_1 = f'<span style="color:#ef4444; font-size:12px;">⚠️ PDF 讀取異常: {e}</span>'
+        manual_link_1 = f'<span style="color:#ef4444; font-size:11px;">⚠️ PDF 異常: {e}</span>'
         manual_link_2 = ""
 
     return f"""
@@ -244,8 +309,8 @@ def render_footer() -> str:
         "    <span class='app-official-text notranslate' translate='no'>交通部公路局東區養護工程分局南澳工務段</span>"
         "  </div>"
         "  <div class='app-official-source notranslate' translate='no'>"
-        "    本網頁資料來源：邊坡全生命週期管理系統 <a href='https://slope.thb.gov.tw/thbslope' target='_blank' rel='noopener noreferrer'>https://slope.thb.gov.tw/thbslope</a><br/>"
-        "    公路局圖說公路平台-圖台 <a href='https://eroad.thb.gov.tw/DGOHForeground/Map/Index' target='_blank' rel='noopener noreferrer'>https://eroad.thb.gov.tw/DGOHForeground/Map/Index</a>"
+        "    資料來源：<a href='https://slope.thb.gov.tw/thbslope' target='_blank'>邊坡全生命週期管理系統</a> ｜ "
+        "    <a href='https://eroad.thb.gov.tw/DGOHForeground/Map/Index' target='_blank'>圖說公路平台</a>"
         "  </div>"
         "</div>"
     )
