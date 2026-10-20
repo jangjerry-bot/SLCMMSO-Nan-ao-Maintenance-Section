@@ -762,7 +762,7 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         legend_html = '''
         <div style="position: fixed; bottom: 20px; right: 20px; background-color: rgba(255,255,255,0.94); z-index:9999; border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: 2px 2px 8px rgba(0,0,0,0.2);">
             <details style="padding: 8px 10px; cursor: pointer;">
-                <summary style="margin: 0; font-weight: 900; font-size: 13.5px; color:#0f172a; list-style: none; outline: none;"><span style="margin-right:4px;">🗺️</span> 委員審查圖例</summary>
+                <summary style="margin: 0; font-weight: 900; font-size: 13.5px; color:#0f172a; list-style: none; outline: none;"><span style="margin-right:4px;">🗺️</span> 圖例</summary>
                 <div style="margin-top: 6px; border-top:1px solid #cbd5e1; padding-top:6px; min-width: 160px;">
                     <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #457b9d;">●</span> 112年 ｜ <span style="color: #e63946;">●</span> 113年</p>
                     <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #f77f00;">●</span> 114年 ｜ <span style="color: #2a9d8f;">●</span> 115年</p>
