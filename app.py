@@ -1,6 +1,7 @@
 # app.py
 import os
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import folium
 from folium.plugins import LocateControl
@@ -40,7 +41,45 @@ importlib.reload(inspection_schema)
 from style import get_theme_css, render_footer, render_top_logo
 from inspection_schema import INSPECTION_TEMPLATES, match_template, generate_doc_report
 
+def set_mobile_home_icon(image_path="LOGO.png"):
+    """
+    透過 JavaScript 將 iOS (apple-touch-icon) 與 Android 高解析度圖示寫入網頁 <head>，
+    讓手機「加入主畫面」時能顯示自訂 LOGO。
+    """
+    if os.path.exists(image_path):
+        with open(image_path, "rb") as f:
+            b64_icon = base64.b64encode(f.read()).decode()
+            ext = "webp" if image_path.endswith("webp") else "png"
+            mime_type = f"image/{ext}"
+        
+        js_code = f"""
+            <script>
+                const iconUrl = "data:{mime_type};base64,{b64_icon}";
+                const doc = window.parent.document;
+                
+                let appleIcon = doc.querySelector('link[rel="apple-touch-icon"]');
+                if (!appleIcon) {{
+                    appleIcon = doc.createElement('link');
+                    appleIcon.rel = 'apple-touch-icon';
+                    doc.head.appendChild(appleIcon);
+                }}
+                appleIcon.href = iconUrl;
+                
+                let stdIcon = doc.querySelector('link[rel="icon"]');
+                if (!stdIcon) {{
+                    stdIcon = doc.createElement('link');
+                    stdIcon.rel = 'icon';
+                    doc.head.appendChild(stdIcon);
+                }}
+                stdIcon.href = iconUrl;
+            </script>
+        """
+        components.html(js_code, height=0, width=0)
+
 st.set_page_config(page_title="南澳邊坡防災圖台", page_icon="⛰️", layout="wide", initial_sidebar_state="collapsed")
+
+# 啟用手機「加入主畫面」專屬 LOGO (請確保目錄下已有 LOGO.png 或 LOGO.webp)
+set_mobile_home_icon("LOGO.png")
 
 # ===== 確保所有狀態變數皆已初始化，避免 KeyError 崩潰 =====
 if "theme_mode" not in st.session_state: st.session_state.theme_mode = "☀️ 淺色"
@@ -150,7 +189,6 @@ def find_spatial_overlay_files():
                 elif any(k in fl for k in ['敏感', '地質', 'gsb', 'geo', 'sensitive', 'part']):
                     geo_files.append(full_p)
                 else:
-                    # 若有其他未知命名的 KMZ，若非敏感區則歸入土石流備用
                     if geo_files and not debris_files:
                         debris_files.append(full_p)
                     else:
@@ -193,7 +231,6 @@ def load_kmz_overlay(file_list, remove_white_bg=False, clip_to_nanao=False):
                 kml_roots.append(ET.parse(file_path).getroot())
 
             for root in kml_roots:
-                # 1. 解析 GroundOverlay 柵格影像
                 for elem in root.iter():
                     if strip_tag(elem.tag) == 'GroundOverlay':
                         ov_name = find_child_text(elem, 'name') or f"空間圖層 ({os.path.basename(file_path)})"
@@ -264,12 +301,10 @@ def load_kmz_overlay(file_list, remove_white_bg=False, clip_to_nanao=False):
                                 })
                                 del img, buf, raw_img_bytes
 
-                # 2. 解析向量 Placemark (支援 Polygon / LineString / MultiGeometry 與南澳轄區空間裁切)
                 for elem in root.iter():
                     if strip_tag(elem.tag) == 'Placemark':
                         pm_name = find_child_text(elem, 'name') or "圖資範圍"
                         pm_desc = find_child_text(elem, 'description') or ""
-                        # 擷取 SimpleData 屬性作為補充說明（公部門土石流 KML 常將溪流編號放於 SimpleData）
                         if not pm_desc:
                             s_data = []
                             for sd in elem.iter():
@@ -299,7 +334,6 @@ def load_kmz_overlay(file_list, remove_white_bg=False, clip_to_nanao=False):
                                     if len(pts) >= 2:
                                         if clip_to_nanao:
                                             lat0, lon0 = pts[0][0], pts[0][1]
-                                            # 僅保留宜蘭、南澳、蘇花廊道周邊範圍 (緯度 24.0~24.9, 經度 121.3~122.1)，大幅提升效能
                                             if not (24.0 <= lat0 <= 24.9 and 121.3 <= lon0 <= 122.1):
                                                 continue
                                         polygons.append({
@@ -376,7 +410,6 @@ def load_mileages():
             df_m = df_m.dropna(subset=['Route', 'Meters', 'lat', 'lon']).reset_index(drop=True)
             return df_m, False, target_file
         except Exception as e:
-            st.error(f"解析里程 CSV 檔案失敗: {e}")
             pass
             
     return pd.DataFrame(), False, target_file
@@ -684,7 +717,6 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
 </div>"""
             folium.CircleMarker(location=[p_lat, p_lon], radius=6.5, popup=folium.Popup(popup_html, max_width=380), color=cmap.get(g, '#64748b'), fill=True, fill_opacity=0.88).add_to(m_loc)
         
-        # 修正：預設隱藏圖層控制器
         folium.LayerControl(position="topright", collapsed=True).add_to(m_loc)
         
         map_output = st_folium(m_loc, width="100%", height=540)
@@ -758,11 +790,10 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
                     ).add_to(fg)
                 fg.add_to(m_dis)
         
-        # 修正：將自訂圖例改為可點擊展開的摺疊選單，預設隱藏不佔空間
         legend_html = '''
         <div style="position: fixed; bottom: 20px; right: 20px; background-color: rgba(255,255,255,0.94); z-index:9999; border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: 2px 2px 8px rgba(0,0,0,0.2);">
             <details style="padding: 8px 10px; cursor: pointer;">
-                <summary style="margin: 0; font-weight: 900; font-size: 13.5px; color:#0f172a; list-style: none; outline: none;"><span style="margin-right:4px;">🗺️</span> 圖例</summary>
+                <summary style="margin: 0; font-weight: 900; font-size: 13.5px; color:#0f172a; list-style: none; outline: none;"><span style="margin-right:4px;">🗺️</span> 委員審查圖例</summary>
                 <div style="margin-top: 6px; border-top:1px solid #cbd5e1; padding-top:6px; min-width: 160px;">
                     <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #457b9d;">●</span> 112年 ｜ <span style="color: #e63946;">●</span> 113年</p>
                     <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #f77f00;">●</span> 114年 ｜ <span style="color: #2a9d8f;">●</span> 115年</p>
@@ -774,7 +805,6 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         '''
         m_dis.get_root().html.add_child(folium.Element(legend_html))
         
-        # 修正：預設隱藏圖層控制器
         folium.LayerControl(position="topright", collapsed=True).add_to(m_dis)
         
         map_output = st_folium(m_dis, width="100%", height=520)
