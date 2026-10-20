@@ -16,14 +16,15 @@ import numpy as np
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 
+# 釋放超大圖檔像素限制，後續透過強制縮圖控制記憶體
 Image.MAX_IMAGE_PIXELS = None
 
 os.makedirs(".streamlit", exist_ok=True)
 config_path = os.path.join(".streamlit", "config.toml")
 config_content = """[theme]
 base = "light"
-primaryColor = "#4A6B82"
-backgroundColor = "#f8fafc"
+primaryColor = "#f97316"
+backgroundColor = "#f1f5f9"
 secondaryBackgroundColor = "#ffffff"
 textColor = "#0f172a"
 """
@@ -39,14 +40,16 @@ importlib.reload(inspection_schema)
 from style import get_theme_css, render_footer, render_top_logo
 from inspection_schema import INSPECTION_TEMPLATES, match_template, generate_doc_report
 
-st.set_page_config(page_title="南澳邊坡全生命週期資料庫", page_icon="⛰️", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="南澳邊坡防災圖台", page_icon="⛰️", layout="wide", initial_sidebar_state="collapsed")
 
+# ===== 確保所有狀態變數皆已初始化，避免 KeyError 崩潰 =====
 if "theme_mode" not in st.session_state: st.session_state.theme_mode = "☀️ 淺色"
 if "bottom_tab" not in st.session_state: st.session_state.bottom_tab = "📋 邊坡清冊"
 if "selected_slope_id" not in st.session_state: st.session_state.selected_slope_id = None
 if "active_grade_detail" not in st.session_state: st.session_state.active_grade_detail = None
 if "patrol_draft" not in st.session_state: st.session_state.patrol_draft = {}
 if "priority_mode" not in st.session_state: st.session_state.priority_mode = False
+if "last_clicked_coords" not in st.session_state: st.session_state.last_clicked_coords = "經緯度：121.80200 24.46500"
 
 is_light = ("淺色" in st.session_state.theme_mode)
 plotly_font_color = "#0f172a" if is_light else "#f8fafc"
@@ -57,25 +60,23 @@ if "splash_shown" not in st.session_state:
 else:
     st.markdown(get_theme_css(is_light, show_splash=False), unsafe_allow_html=True)
 
-# 頂部緊湊型 Header 與主題快速切換
-top_col1, top_col2 = st.columns([7.8, 2.2])
-with top_col1:
-    st.markdown(render_top_logo(), unsafe_allow_html=True)
-with top_col2:
-    st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
-    selected_theme = st.radio("色彩模式", ["🌙 深色", "☀️ 淺色"], index=1 if is_light else 0, horizontal=True, label_visibility="collapsed")
-    if selected_theme != st.session_state.theme_mode:
-        st.session_state.theme_mode = selected_theme
-        st.rerun()
+header_titles = {
+    "📋 邊坡清冊": "南澳邊坡清冊快搜",
+    "📊 定量定性": "邊坡分級統計情報",
+    "🗺️ 地圖定位": "邊坡防災圖台",
+    "🔥 災害斑點圖": "災害與敏感區圖台",
+    "📝 養護巡查": "外業養護巡查表單"
+}
+st.markdown(render_top_logo(header_titles.get(st.session_state.bottom_tab, "南澳邊坡防災圖台")), unsafe_allow_html=True)
 
-# ===== 懸浮於螢幕最底部之拇指觸控導航列 =====
+# 底部導航列 CSS 定位錨點
 st.markdown('<div id="bottom-nav-anchor"></div>', unsafe_allow_html=True)
 tabs_meta = [
-    ("📋 邊坡清冊", "📋\n邊坡清冊"),
-    ("📊 定量定性", "📊\n統計圖表"),
-    ("🗺️ 地圖定位", "🗺️\n空間定位"),
-    ("🔥 災害斑點", "🔥\n災害疊圖"),
-    ("📝 養護巡查", "📝\n養護巡查")
+    ("📋 邊坡清冊", "🏠\n首頁清冊"),
+    ("🗺️ 地圖定位", "🗺️\n邊坡地圖"),
+    ("🔥 災害斑點", "⚠️\n災害疊圖"),
+    ("📊 定量定性", "📊\n分級情報"),
+    ("📝 養護巡查", "📝\n巡查填報")
 ]
 nav_cols = st.columns(5)
 for i, (tab_key, tab_label) in enumerate(tabs_meta):
@@ -642,7 +643,7 @@ elif st.session_state.bottom_tab == "📊 定量定性":
             st.plotly_chart(fig_quant, use_container_width=True)
 
 # ==============================================================================
-# 頁面 3：地圖定位
+# 頁面 3：地圖定位 
 # ==============================================================================
 elif st.session_state.bottom_tab == "🗺️ 地圖定位":
     search_res_ph = st.empty()
@@ -682,7 +683,9 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
 </div>
 </div>"""
             folium.CircleMarker(location=[p_lat, p_lon], radius=6.5, popup=folium.Popup(popup_html, max_width=380), color=cmap.get(g, '#64748b'), fill=True, fill_opacity=0.88).add_to(m_loc)
-        folium.LayerControl(position="topright").add_to(m_loc)
+        
+        # 修正：預設隱藏圖層控制器
+        folium.LayerControl(position="topright", collapsed=True).add_to(m_loc)
         
         map_output = st_folium(m_loc, width="100%", height=540)
         if map_output and map_output.get("last_clicked"):
@@ -692,7 +695,7 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
                 search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
 
 # ==============================================================================
-# 頁面 4：災害斑點圖 (整合「地質敏感區」與「土石流潛勢溪流」多圖層疊加)
+# 頁面 4：災害斑點圖 
 # ==============================================================================
 elif st.session_state.bottom_tab == "🔥 災害斑點圖":
     with st.container(border=True):
@@ -755,17 +758,24 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
                     ).add_to(fg)
                 fg.add_to(m_dis)
         
+        # 修正：將自訂圖例改為可點擊展開的摺疊選單，預設隱藏不佔空間
         legend_html = '''
-        <div style="position: fixed; bottom: 20px; right: 20px; width: 180px; background-color: rgba(255,255,255,0.94); z-index:9999; border-radius: 8px; padding: 10px; border: 2px solid #cbd5e1; box-shadow: 2px 2px 8px rgba(0,0,0,0.2);">
-            <p style="margin: 0 0 4px 0; font-weight: 900; font-size: 13.5px; color:#0f172a; border-bottom:1px solid #cbd5e1; padding-bottom:3px;">🗺️ 委員審查圖例</p>
-            <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #457b9d;">●</span> 112年 ｜ <span style="color: #e63946;">●</span> 113年</p>
-            <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #f77f00;">●</span> 114年 ｜ <span style="color: #2a9d8f;">●</span> 115年</p>
-            <p style="margin: 4px 0 2px 0; font-size: 11.5px; font-weight:bold; color:#b45309; background:#fef3c7; padding:2px 4px; border-radius:3px;">🧱 南澳地質敏感區</p>
-            <p style="margin: 2px 0 0 0; font-size: 11.5px; font-weight:bold; color:#0369a1; background:#e0f2fe; padding:2px 4px; border-radius:3px;">🌊 土石流潛勢溪流圖</p>
+        <div style="position: fixed; bottom: 20px; right: 20px; background-color: rgba(255,255,255,0.94); z-index:9999; border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: 2px 2px 8px rgba(0,0,0,0.2);">
+            <details style="padding: 8px 10px; cursor: pointer;">
+                <summary style="margin: 0; font-weight: 900; font-size: 13.5px; color:#0f172a; list-style: none; outline: none;"><span style="margin-right:4px;">🗺️</span> 委員審查圖例</summary>
+                <div style="margin-top: 6px; border-top:1px solid #cbd5e1; padding-top:6px; min-width: 160px;">
+                    <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #457b9d;">●</span> 112年 ｜ <span style="color: #e63946;">●</span> 113年</p>
+                    <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #f77f00;">●</span> 114年 ｜ <span style="color: #2a9d8f;">●</span> 115年</p>
+                    <p style="margin: 4px 0 2px 0; font-size: 11.5px; font-weight:bold; color:#b45309; background:#fef3c7; padding:2px 4px; border-radius:3px; display:inline-block;">🧱 南澳地質敏感區</p><br>
+                    <p style="margin: 2px 0 0 0; font-size: 11.5px; font-weight:bold; color:#0369a1; background:#e0f2fe; padding:2px 4px; border-radius:3px; display:inline-block;">🌊 土石流潛勢溪流圖</p>
+                </div>
+            </details>
         </div>
         '''
         m_dis.get_root().html.add_child(folium.Element(legend_html))
-        folium.LayerControl(position="topright", collapsed=False).add_to(m_dis)
+        
+        # 修正：預設隱藏圖層控制器
+        folium.LayerControl(position="topright", collapsed=True).add_to(m_dis)
         
         map_output = st_folium(m_dis, width="100%", height=520)
         if map_output and map_output.get("last_clicked"):
