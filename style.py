@@ -278,30 +278,29 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     .embed-map-box { border-radius: 12px; overflow: hidden; border: 1px solid var(--card-border) !important; margin: 6px 0; }
     .coord-status-bar { background: rgba(15, 23, 42, 0.82); color: #f8fafc; font-family: monospace; font-size: 12.5px; font-weight: 700; padding: 5px 12px; border-radius: 6px; text-align: right; margin-top: -6px; margin-bottom: 6px; }
 
-    /* 恢復頁尾的顯示與排版 */
+    /* 恢復頁尾的顯示與排版，大幅縮減上下邊距 */
     .app-official-footer-bottom { 
         display: flex !important; 
         flex-direction: column !important; 
         align-items: center !important; 
         justify-content: center !important; 
-        margin-top: 30px !important; 
-        margin-bottom: 26px !important; 
+        margin-top: 8px !important; 
+        margin-bottom: 12px !important; 
         padding: 8px 12px !important; 
         background: transparent !important; 
         border: none !important; 
         width: 100% !important; 
     }
-    .footer-title-row { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 8px !important; margin-bottom: 8px !important; flex-wrap: nowrap !important; width: 100% !important; }
+    .footer-title-row { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 8px !important; margin-bottom: 6px !important; flex-wrap: nowrap !important; width: 100% !important; }
     .app-official-logo { height: clamp(24px, 5.0vw, 36px) !important; width: auto !important; flex-shrink: 0 !important; }
     .app-official-text { font-size: clamp(11.5px, 3.2vw, 17px) !important; font-weight: 900 !important; color: var(--footer-text) !important; white-space: nowrap !important; letter-spacing: 0px !important; }
     .app-official-source { font-size: 13px !important; font-weight: 600 !important; color: var(--text-muted) !important; line-height: 1.6 !important; text-align: center !important; }
-    .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; font-weight: 700 !important; margin-left: 4px !important; }
+    .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; font-weight: 700 !important; margin: 0 4px !important; }
 </style>
 """
     style_part = css_template.replace("__THEME_VARS__", theme_vars)
     return (splash_overlay_html if show_splash else "") + style_part
 
-# 加入 *args, **kwargs 防呆參數，避免 app.py 傳遞字串導致程式崩潰
 def render_top_logo(*args, **kwargs) -> str:
     manual_link_1 = '<div style="color:#ef4444; font-size:12px; font-weight:bold; margin-top:6px;">⚠️ 缺教學手冊PDF</div>'
     manual_link_2 = '<div style="color:#ef4444; font-size:12px; font-weight:bold; margin-top:6px;">⚠️ 缺巡檢機制PDF</div>'
@@ -328,7 +327,6 @@ def render_top_logo(*args, **kwargs) -> str:
         manual_link_1 = f'<div style="color:#ef4444; font-size:12px; margin-top:6px;">⚠️ PDF 異常: {e}</div>'
         manual_link_2 = ""
 
-    # 恢復原本的 SVG 立體 Logo 與排版
     return f"""
     <div class="system-header-box notranslate" translate="no">
       <svg class="app-top-logo" viewBox="0 0 400 300" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -372,7 +370,6 @@ def render_footer() -> str:
             except Exception:
                 pass
 
-    # 恢復原本的官方資料來源與連結
     return (
         "<div class='app-official-footer-bottom notranslate' translate='no'>"
         "  <div class='footer-title-row'>"
@@ -380,8 +377,8 @@ def render_footer() -> str:
         "    <span class='app-official-text notranslate' translate='no'>交通部公路局東區養護工程分局南澳工務段</span>"
         "  </div>"
         "  <div class='app-official-source notranslate' translate='no'>"
-        "    本網頁資料來源：邊坡全生命週期管理系統 <a href='https://slope.thb.gov.tw/thbslope' target='_blank' rel='noopener noreferrer'>https://slope.thb.gov.tw/thbslope</a><br/>"
-        "    公路局圖說公路平台-圖台 <a href='https://eroad.thb.gov.tw/DGOHForeground/Map/Index' target='_blank' rel='noopener noreferrer'>https://eroad.thb.gov.tw/DGOHForeground/Map/Index</a>"
+        "    本網頁資料來源：<a href='https://slope.thb.gov.tw/thbslope' target='_blank' rel='noopener noreferrer'>邊坡全生命週期管理系統</a> ｜ "
+        "    <a href='https://eroad.thb.gov.tw/DGOHForeground/Map/Index' target='_blank' rel='noopener noreferrer'>公路局圖說公路平台-圖台</a>"
         "  </div>"
         "</div>"
     )
