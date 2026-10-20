@@ -20,6 +20,7 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
             --dock-border: #e2e8f0;
             --dock-inactive: #94a3b8;
             --dock-active: #f97316;
+            --topbar-bg: #1b2a47;
             --footer-text: #4A6B82;
             --link-color: #2563eb;
         """
@@ -40,6 +41,7 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
             --dock-border: #1f2937;
             --dock-inactive: #64748b;
             --dock-active: #fb923c;
+            --topbar-bg: #0f172a;
             --footer-text: #60a5fa;
             --link-color: #60a5fa;
         """
@@ -120,17 +122,17 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     /* 隱藏原生 Header 以釋放空間 */
     #MainMenu, header[data-testid="stHeader"] { visibility: hidden !important; height: 0 !important; }
     
+    /* 減少底部 padding 讓頁尾能更緊湊貼合內容 */
     .block-container {
         max-width: 1280px !important;
         width: 100% !important;
         padding-top: clamp(2.8rem, 4.5vh, 3.5rem) !important;
-        padding-bottom: 95px !important;
+        padding-bottom: 75px !important;
         padding-left: clamp(8px, 2vw, 24px) !important;
         padding-right: clamp(8px, 2vw, 24px) !important;
         margin: 0 auto !important;
     }
 
-    /* 恢復原本的頂部立體 Logo 標題區塊 */
     .system-header-box { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 12px !important; margin-top: 0px !important; margin-bottom: 20px !important; width: 100% !important; }
     .app-top-logo { width: clamp(50px, 12vw, 80px) !important; height: auto !important; margin-bottom: 0px !important; flex-shrink: 0 !important; filter: drop-shadow(0 3px 8px rgba(56, 189, 248, 0.3)) !important; }
     .title-wrapper { display:flex; flex-direction:row; align-items:center; justify-content:flex-start; flex-wrap:wrap; gap: 10px; width: 100%; }
@@ -278,24 +280,24 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     .embed-map-box { border-radius: 12px; overflow: hidden; border: 1px solid var(--card-border) !important; margin: 6px 0; }
     .coord-status-bar { background: rgba(15, 23, 42, 0.82); color: #f8fafc; font-family: monospace; font-size: 12.5px; font-weight: 700; padding: 5px 12px; border-radius: 6px; text-align: right; margin-top: -6px; margin-bottom: 6px; }
 
-    /* 恢復頁尾的顯示與排版，大幅縮減上下邊距 */
+    /* 緊湊化頁尾：取消 margin 佔位，縮減 padding */
     .app-official-footer-bottom { 
         display: flex !important; 
         flex-direction: column !important; 
         align-items: center !important; 
         justify-content: center !important; 
-        margin-top: 8px !important; 
-        margin-bottom: 12px !important; 
-        padding: 8px 12px !important; 
+        margin-top: 0px !important; 
+        margin-bottom: 0px !important; 
+        padding: 8px 12px 12px 12px !important; 
         background: transparent !important; 
         border: none !important; 
         width: 100% !important; 
     }
-    .footer-title-row { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 8px !important; margin-bottom: 6px !important; flex-wrap: nowrap !important; width: 100% !important; }
+    .footer-title-row { display: flex !important; flex-direction: row !important; align-items: center !important; justify-content: center !important; gap: 8px !important; margin-bottom: 4px !important; flex-wrap: nowrap !important; width: 100% !important; }
     .app-official-logo { height: clamp(24px, 5.0vw, 36px) !important; width: auto !important; flex-shrink: 0 !important; }
     .app-official-text { font-size: clamp(11.5px, 3.2vw, 17px) !important; font-weight: 900 !important; color: var(--footer-text) !important; white-space: nowrap !important; letter-spacing: 0px !important; }
     .app-official-source { font-size: 13px !important; font-weight: 600 !important; color: var(--text-muted) !important; line-height: 1.6 !important; text-align: center !important; }
-    .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; font-weight: 700 !important; margin: 0 4px !important; }
+    .app-official-source a { color: var(--link-color) !important; text-decoration: underline !important; font-weight: 700 !important; margin: 0 2px !important; }
 </style>
 """
     style_part = css_template.replace("__THEME_VARS__", theme_vars)
@@ -355,7 +357,7 @@ def render_top_logo(*args, **kwargs) -> str:
     </div>
     """
 
-def render_footer() -> str:
+def render_footer(*args, **kwargs) -> str:
     logo_svg = '<svg class="app-official-logo notranslate" viewBox="0 0 818 138" fill="none" xmlns="http://www.w3.org/2000/svg" translate="no"><path d="M409 69C409 30.89 439.89 0 478 0C516.11 0 547 30.89 547 69C547 107.11 516.11 138 478 138C439.89 138 409 107.11 409 69Z" fill="#E62117"/><path d="M478 14C447.62 14 423 38.62 423 69C423 99.38 447.62 124 478 124C508.38 124 533 99.38 533 69C533 38.62 508.38 14 478 14ZM478 110C455.36 110 437 91.64 437 69C437 46.36 455.36 28 478 28C500.64 28 519 46.36 519 69C519 91.64 500.64 110 478 110Z" fill="white"/><path d="M0 24L380 24C395 24 402 36 388 48L70 48C50 48 30 40 0 24Z" fill="#1E50A2"/><path d="M818 24L438 24C423 24 416 36 430 48L748 48C768 48 788 40 818 24Z" fill="#1E50A2"/><path d="M60 56L370 56C382 56 388 66 376 76L120 76C100 76 80 70 60 56Z" fill="#0080FF"/><path d="M758 56L448 56C436 56 430 66 442 76L698 76C718 76 738 70 758 56Z" fill="#0080FF"/><path d="M120 86L360 86C370 86 375 94 365 102L170 102C150 102 135 96 120 86Z" fill="#00BFFF"/><path d="M698 86L458 86C448 86 443 94 453 102L648 102C668 102 683 96 698 86Z" fill="#00BFFF"/></svg>'
     
     logo_render = logo_svg
@@ -370,6 +372,7 @@ def render_footer() -> str:
             except Exception:
                 pass
 
+    # 依照截圖 2 整併超連結為單行文字
     return (
         "<div class='app-official-footer-bottom notranslate' translate='no'>"
         "  <div class='footer-title-row'>"
@@ -377,7 +380,8 @@ def render_footer() -> str:
         "    <span class='app-official-text notranslate' translate='no'>交通部公路局東區養護工程分局南澳工務段</span>"
         "  </div>"
         "  <div class='app-official-source notranslate' translate='no'>"
-        "    本網頁資料來源：<a href='https://slope.thb.gov.tw/thbslope' target='_blank' rel='noopener noreferrer'>邊坡全生命週期管理系統</a> ｜ "
+        "    本網頁資料來源：<a href='https://slope.thb.gov.tw/thbslope' target='_blank' rel='noopener noreferrer'>邊坡全生命週期管理系統</a>"
+        "    <span style='margin: 0 6px; color: var(--text-muted);'>｜</span>"
         "    <a href='https://eroad.thb.gov.tw/DGOHForeground/Map/Index' target='_blank' rel='noopener noreferrer'>公路局圖說公路平台-圖台</a>"
         "  </div>"
         "</div>"

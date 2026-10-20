@@ -16,15 +16,14 @@ import numpy as np
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
 
-# 釋放超大圖檔像素限制，後續透過強制縮圖控制記憶體
 Image.MAX_IMAGE_PIXELS = None
 
 os.makedirs(".streamlit", exist_ok=True)
 config_path = os.path.join(".streamlit", "config.toml")
 config_content = """[theme]
 base = "light"
-primaryColor = "#f97316"
-backgroundColor = "#f1f5f9"
+primaryColor = "#4A6B82"
+backgroundColor = "#f8fafc"
 secondaryBackgroundColor = "#ffffff"
 textColor = "#0f172a"
 """
@@ -40,7 +39,7 @@ importlib.reload(inspection_schema)
 from style import get_theme_css, render_footer, render_top_logo
 from inspection_schema import INSPECTION_TEMPLATES, match_template, generate_doc_report
 
-st.set_page_config(page_title="南澳邊坡防災圖台", page_icon="⛰️", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="南澳邊坡全生命週期資料庫", page_icon="⛰️", layout="wide", initial_sidebar_state="collapsed")
 
 if "theme_mode" not in st.session_state: st.session_state.theme_mode = "☀️ 淺色"
 if "bottom_tab" not in st.session_state: st.session_state.bottom_tab = "📋 邊坡清冊"
@@ -48,7 +47,6 @@ if "selected_slope_id" not in st.session_state: st.session_state.selected_slope_
 if "active_grade_detail" not in st.session_state: st.session_state.active_grade_detail = None
 if "patrol_draft" not in st.session_state: st.session_state.patrol_draft = {}
 if "priority_mode" not in st.session_state: st.session_state.priority_mode = False
-if "last_clicked_coords" not in st.session_state: st.session_state.last_clicked_coords = "經緯度：121.80200 24.46500"
 
 is_light = ("淺色" in st.session_state.theme_mode)
 plotly_font_color = "#0f172a" if is_light else "#f8fafc"
@@ -59,23 +57,22 @@ if "splash_shown" not in st.session_state:
 else:
     st.markdown(get_theme_css(is_light, show_splash=False), unsafe_allow_html=True)
 
-header_titles = {
-    "📋 邊坡清冊": "南澳邊坡清冊快搜",
-    "📊 定量定性": "邊坡分級統計情報",
-    "🗺️ 地圖定位": "邊坡防災圖台",
-    "🔥 災害斑點圖": "災害與敏感區圖台",
-    "📝 養護巡查": "外業養護巡查表單"
-}
-st.markdown(render_top_logo(header_titles.get(st.session_state.bottom_tab, "南澳邊坡防災圖台")), unsafe_allow_html=True)
+top_col1, top_col2 = st.columns([7.8, 2.2])
+with top_col1:
+    st.markdown(render_top_logo(), unsafe_allow_html=True)
+with top_col2:
+    st.markdown("<div style='margin-top: 8px;'></div>", unsafe_allow_html=True)
+    selected_theme = st.radio("色彩模式", ["🌙 深色", "☀️ 淺色"], index=1 if is_light else 0, horizontal=True, label_visibility="collapsed")
+    if selected_theme != st.session_state.theme_mode:
+        st.session_state.theme_mode = selected_theme
+        st.rerun()
 
-# 底部導航列 CSS 定位錨點
-st.markdown('<div id="bottom-nav-anchor"></div>', unsafe_allow_html=True)
 tabs_meta = [
-    ("📋 邊坡清冊", "🏠\n首頁清冊"),
-    ("🗺️ 地圖定位", "🗺️\n邊坡地圖"),
-    ("🔥 災害斑點", "⚠️\n災害疊圖"),
-    ("📊 定量定性", "📊\n分級情報"),
-    ("📝 養護巡查", "📝\n巡查填報")
+    ("📋 邊坡清冊", "📋\n邊坡清冊"),
+    ("📊 定量定性", "📊\n統計圖表"),
+    ("🗺️ 地圖定位", "🗺️\n空間定位"),
+    ("🔥 災害斑點", "🔥\n災害疊圖"),
+    ("📝 養護巡查", "📝\n養護巡查")
 ]
 nav_cols = st.columns(5)
 for i, (tab_key, tab_label) in enumerate(tabs_meta):
@@ -184,7 +181,6 @@ def load_kmz_overlay(file_list, remove_white_bg=False):
             else:
                 root = ET.parse(file_path).getroot()
 
-            # A. 解析 GroundOverlay 柵格影像
             for elem in root.iter():
                 if strip_tag(elem.tag) == 'GroundOverlay':
                     ov_name = find_child_text(elem, 'name') or f"空間圖層 ({file_path})"
@@ -233,29 +229,24 @@ def load_kmz_overlay(file_list, remove_white_bg=False):
                                 raw_img_bytes = open(os.path.basename(href_clean), "rb").read()
 
                         if raw_img_bytes:
-                            # 記憶體降載：開啟後強制縮圖至 1000px，避免 OOM 崩潰
                             img = Image.open(io.BytesIO(raw_img_bytes)).convert("RGBA")
-                            img.thumbnail((1000, 1000), Image.Resampling.LANCZOS)
+                            img.thumbnail((2200, 2200), Image.Resampling.LANCZOS)
 
                             if remove_white_bg:
                                 arr = np.array(img)
-                                white_mask = (arr[:, :, 0] > 235) & (arr[:, :, 1] > 235) & (arr[:, :, 2] > 235)
+                                white_mask = (arr[:, :, 0] > 240) & (arr[:, :, 1] > 240) & (arr[:, :, 2] > 240)
                                 arr[white_mask, 3] = 0
                                 img = Image.fromarray(arr)
-                                del arr, white_mask
 
                             buf = io.BytesIO()
-                            img.save(buf, format="PNG", optimize=False)
+                            img.save(buf, format="PNG", optimize=True)
                             b64_str = base64.b64encode(buf.getvalue()).decode('utf-8')
-                            
                             overlays.append({
                                 "name": ov_name,
                                 "image_uri": f"data:image/png;base64,{b64_str}",
                                 "bounds": [[float(south), float(west)], [float(north), float(east)]]
                             })
-                            del img, buf, raw_img_bytes
 
-            # B. 解析向量 Polygon / LineString
             for elem in root.iter():
                 if strip_tag(elem.tag) == 'Placemark':
                     pm_name = find_child_text(elem, 'name') or "圖資範圍"
@@ -460,7 +451,6 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
 <a href='{gmap_street_url}' target='_blank' style='flex:1; text-align:center; padding:11px 8px; background:#059669; color:white; font-weight:800; border-radius:10px; text-decoration:none; font-size:15px;'>🛣️ 現地街景</a>
 </div>"""
                     st.markdown(nav_btns, unsafe_allow_html=True)
-                    # 高度擴展至 550 以符合畫面最大化顯示需求
                     embed_map = f"""<div class='embed-map-box notranslate' translate='no'>
 <iframe width='100%' height='550' frameborder='0' scrolling='no' src='https://maps.google.com/maps?q={r_lat},{r_lon}&t=k&z=17&ie=UTF8&iwloc=&output=embed'></iframe>
 </div>"""
@@ -478,7 +468,9 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 ]
                 rows_html = "".join([f"<div class='detail-row'><span class='detail-label'>{k}</span><span class='detail-value'>{v}</span></div>" for k, v in detail_fields])
                 st.markdown(f"<div class='app-card notranslate' translate='no'>{rows_html}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='app-card notranslate' translate='no' style='background:rgba(74, 107, 130, 0.12); border-left:4px solid #4A6B82; line-height:1.45; font-size:14px;'><b>現地狀況描述：</b><br>{row.get('現地狀況描述', '無描述紀錄')}</div>", unsafe_allow_html=True)
+                
+                # 依據截圖1修改：將背景改為純白(適應深淺色)，並固定高度使其與左側地圖齊平
+                st.markdown(f"<div class='app-card notranslate' translate='no' style='background:var(--card-bg); border-left:4px solid #4A6B82; line-height:1.6; font-size:14px; height:410px; overflow-y:auto;'><b>現地狀況描述：</b><br><div style='margin-top:6px;'>{row.get('現地狀況描述', '無描述紀錄')}</div></div>", unsafe_allow_html=True)
     else:
         with st.container(border=True):
             c_f1, c_f2, c_f3, c_f4 = st.columns([1.8, 1.0, 1.0, 1.1])
@@ -658,7 +650,7 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
             nav_url = f"https://www.google.com/maps/dir/?api=1&destination={p_lat},{p_lon}"
             street_url = f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={p_lat},{p_lon}&heading=0&pitch=0&fov=90"
             popup_html = f"""<div style='font-size:14px; line-height:1.55; min-width:230px; white-space:nowrap;'>
-<b style='font-size:15.5px; color:#0f172a;'>{r['路線']} {r['里程樁號(起)']}</b><br/>
+<b style='font-size:15.5px; color:#0f172a;'>{r['路线']} {r['里程樁號(起)']}</b><br/>
 <b>卡號：</b>{r['口卡編號']}<br/>
 <b>分級：</b><span style='color:{cmap.get(g, "#64748b")}; font-weight:bold;'>{g} 級</span>（RHRS: {r.get('定量分級', '未施作')}）<br/>
 <b>構造：</b>{r.get('邊坡構造物', '自然邊坡')}<br/>
@@ -682,7 +674,7 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
         st.markdown(f"<div class='coord-status-bar'>{st.session_state.last_clicked_coords}</div>", unsafe_allow_html=True)
 
 # ==============================================================================
-# 頁面 4：災害疊圖 (歷次災害 + 地質敏感區 + 1753條土石流潛勢溪流)
+# 頁面 4：災害疊圖
 # ==============================================================================
 elif st.session_state.bottom_tab == "🔥 災害斑點圖":
     with st.expander("🎛️ 圖層開關與透明度設定（點擊展開／收合，釋放最大地圖視野）", expanded=False):
