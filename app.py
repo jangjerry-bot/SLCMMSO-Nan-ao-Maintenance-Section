@@ -113,7 +113,7 @@ st.markdown('<div id="bottom-nav-anchor"></div>', unsafe_allow_html=True)
 tabs_meta = [
     ("📋 邊坡清冊", "🏠\n首頁清冊"),
     ("🗺️ 地圖定位", "🗺️\n邊坡地圖"),
-    ("🔥 災害斑點", "⚠️\n災害疊圖"),
+    ("🔥 災害斑點", "⚠️\n災害斑點"),
     ("📊 定量定性", "📊\n分級情報"),
     ("📝 養護巡查", "📝\n巡查填報")
 ]
@@ -646,10 +646,12 @@ elif st.session_state.bottom_tab == "📊 定量定性":
             if "圓餅圖" in chart_type:
                 fig_qual = px.pie(qual_df, values='數量', names='圖例標籤', hole=0.45, color='圖例標籤', color_discrete_map=qual_color, category_orders={"圖例標籤": qual_df['圖例標籤'].tolist()})
                 fig_qual.update_traces(textposition='inside', textinfo='label', textfont_size=15, sort=False)
+                fig_qual.update_layout(margin=dict(l=5, r=5, t=15, b=5), height=320, showlegend=False, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=14))
             else:
                 fig_qual = px.bar(qual_df, x="圖例標籤", y="數量", text="數量", color="圖例標籤", color_discrete_map=qual_color, category_orders={"圖例標籤": qual_df['圖例標籤'].tolist()})
-                fig_qual.update_traces(textposition='outside', textfont_size=15)
-            fig_qual.update_layout(margin=dict(l=5, r=5, t=15, b=5), height=320, showlegend=False, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=14))
+                fig_qual.update_traces(textposition='outside', textfont_size=15, cliponaxis=False)
+                y_max = qual_df['數量'].max() * 1.15 if qual_df['數量'].max() > 0 else 10
+                fig_qual.update_layout(margin=dict(l=5, r=5, t=45, b=5), height=320, showlegend=False, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=14), yaxis=dict(range=[0, y_max]))
             st.plotly_chart(fig_qual, use_container_width=True)
 
     with stat_col2:
@@ -669,10 +671,12 @@ elif st.session_state.bottom_tab == "📊 定量定性":
             if "圓餅圖" in chart_type:
                 fig_quant = px.pie(quant_df, values='數量', names='圖例標籤', hole=0.45, color='圖例標籤', color_discrete_map=quant_color, category_orders={"圖例標籤": quant_df['圖例標籤'].tolist()})
                 fig_quant.update_traces(textposition='inside', textinfo='label', textfont_size=15, sort=False)
+                fig_quant.update_layout(margin=dict(l=5, r=5, t=15, b=5), height=320, showlegend=False, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=14))
             else:
                 fig_quant = px.bar(quant_df, x="圖例標籤", y="數量", text="數量", color="圖例標籤", color_discrete_map=quant_color, category_orders={"圖例標籤": quant_df['圖例標籤'].tolist()})
-                fig_quant.update_traces(textposition='outside', textfont_size=15)
-            fig_quant.update_layout(margin=dict(l=5, r=5, t=15, b=5), height=320, showlegend=False, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=14))
+                fig_quant.update_traces(textposition='outside', textfont_size=15, cliponaxis=False)
+                y_max = quant_df['數量'].max() * 1.15 if quant_df['數量'].max() > 0 else 10
+                fig_quant.update_layout(margin=dict(l=5, r=5, t=45, b=5), height=320, showlegend=False, paper_bgcolor='rgba(0,0,0,0)', font=dict(color=plotly_font_color, size=14), yaxis=dict(range=[0, y_max]))
             st.plotly_chart(fig_quant, use_container_width=True)
 
 # ==============================================================================
@@ -727,7 +731,7 @@ elif st.session_state.bottom_tab == "🗺️ 地圖定位":
                 search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）")
 
 # ==============================================================================
-# 頁面 4：災害斑點圖 
+# 頁面 4：災害斑點圖 (整合「地質敏感區」與「土石流潛勢溪流」多圖層疊加)
 # ==============================================================================
 elif st.session_state.bottom_tab == "🔥 災害斑點圖":
     with st.container(border=True):
@@ -793,7 +797,7 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         legend_html = '''
         <div style="position: fixed; bottom: 20px; right: 20px; background-color: rgba(255,255,255,0.94); z-index:9999; border-radius: 8px; border: 2px solid #cbd5e1; box-shadow: 2px 2px 8px rgba(0,0,0,0.2);">
             <details style="padding: 8px 10px; cursor: pointer;">
-                <summary style="margin: 0; font-weight: 900; font-size: 13.5px; color:#0f172a; list-style: none; outline: none;"><span style="margin-right:4px;">🗺️</span> 圖例</summary>
+                <summary style="margin: 0; font-weight: 900; font-size: 13.5px; color:#0f172a; list-style: none; outline: none;"><span style="margin-right:4px;">🗺️</span> 委員審查圖例</summary>
                 <div style="margin-top: 6px; border-top:1px solid #cbd5e1; padding-top:6px; min-width: 160px;">
                     <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #457b9d;">●</span> 112年 ｜ <span style="color: #e63946;">●</span> 113年</p>
                     <p style="margin: 2px 0; font-size: 12.5px; font-weight:bold; color:#0f172a;"><span style="color: #f77f00;">●</span> 114年 ｜ <span style="color: #2a9d8f;">●</span> 115年</p>
@@ -810,9 +814,12 @@ elif st.session_state.bottom_tab == "🔥 災害斑點圖":
         map_output = st_folium(m_dis, width="100%", height=520)
         if map_output and map_output.get("last_clicked"):
             c_lat, c_lon = map_output["last_clicked"]["lat"], map_output["last_clicked"]["lng"]
+            st.session_state.last_clicked_coords = f"經緯度：{c_lon:.5f} {c_lat:.5f}"
             if not df_mileages.empty:
                 near_name, dist = get_interpolated_mileage(c_lat, c_lon, df_mileages)
                 search_res_ph.success(f"🎯 **點圖定位分析**：此位置最接近 **{near_name}**（誤差約 {dist:.0f} 公尺）｜ 座標：({c_lat:.5f}, {c_lon:.5f})")
+
+        st.markdown(f"<div class='coord-status-bar'>{st.session_state.last_clicked_coords}</div>", unsafe_allow_html=True)
 
 # ==============================================================================
 # 頁面 5：養護巡查
