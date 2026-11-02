@@ -270,6 +270,10 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     html body .stApp input[type="text"], html body .stApp textarea { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; font-size: 15px !important; font-weight: 600 !important; }
 
     .app-card { background: var(--card-bg) !important; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; border: 1px solid var(--card-border) !important; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    .slope-card-meta { font-size: 13px; line-height: 19px; color: var(--text-muted) !important; margin-top: 2px; word-break: break-word; }
+    .slope-card-meta code { background: rgba(100,116,139,0.15); color: var(--text-main) !important; padding: 1px 6px; border-radius: 6px; font-size: 12px; }
+    .slope-card-meta-sm { font-size: 12px; }
+    .slope-card-meta-sm code { font-size: 11px; }
     .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--card-border) !important; font-size: 14px; line-height: 1.4; color: var(--text-main) !important; }
     .detail-label { color: var(--text-muted) !important; font-weight: 600; width: 42%; }
     .detail-value { font-weight: 700; width: 58%; text-align: right; word-break: break-all; color: var(--text-main) !important; }
