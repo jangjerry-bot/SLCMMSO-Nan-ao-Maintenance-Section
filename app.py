@@ -1,5 +1,7 @@
 # app.py
 import os
+import math
+import html
 import streamlit as st
 import streamlit.components.v1 as components
 import pandas as pd
@@ -599,21 +601,31 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
         st.caption(f"{header_hint}（共 **{len(display_target_df)}** 處，可直接於下方獨立視窗內滑動點選）：")
 
         with st.container(height=500, border=True):
-            grid_cols = st.columns(2)
-            for idx, (_, r) in enumerate(display_target_df.iterrows()):
-                grade = str(r['定性分級'])
-                quant_g = r.get('定量分級', '未施作')
-                struct_short = str(r.get('邊坡構造物', '自然邊坡'))
-                with grid_cols[idx % 2]:
-                    with st.container(border=True):
-                        c_card1, c_card2 = st.columns([0.62, 0.38])
-                        with c_card1:
-                            st.markdown(f"<span class='route-green-text'>📍 {r['路線']} {r['里程樁號(起)']}</span>", unsafe_allow_html=True)
-                            st.caption(f"`{grade}級` ｜ {struct_short}")
-                        with c_card2:
-                            if st.button("🔍 檢視", key=f"pick_{r['口卡編號']}", use_container_width=True, type="primary"):
-                                st.session_state.selected_slope_id = r['口卡編號']
-                                st.rerun()
+            slope_cards = list(display_target_df.iterrows())
+            # 逐「排」建立欄位，並把同排兩張卡片的文字區補成等高：
+            # 卡片頂端、檢視按鈕與下緣才能對齊，長文字完整保留（過長時改用較小字級）
+            for row_start in range(0, len(slope_cards), 2):
+                pair = slope_cards[row_start:row_start + 2]
+                pair_lines = max(
+                    max(1, math.ceil((sum(1.0 if ord(ch) > 0x2E7F else 0.55 for ch in str(r.get('邊坡構造物', '自然邊坡'))) + 5.0) / 20.0))
+                    for _, r in pair
+                )
+                meta_min_h = pair_lines * 19 + 3
+                grid_cols = st.columns(2)
+                for col_idx, (_, r) in enumerate(pair):
+                    grade = str(r['定性分級'])
+                    struct_short = str(r.get('邊坡構造物', '自然邊坡'))
+                    meta_cls = 'slope-card-meta slope-card-meta-sm' if len(struct_short) > 32 else 'slope-card-meta'
+                    with grid_cols[col_idx]:
+                        with st.container(border=True):
+                            c_card1, c_card2 = st.columns([0.62, 0.38])
+                            with c_card1:
+                                st.markdown(f"<span class='route-green-text'>📍 {r['路線']} {r['里程樁號(起)']}</span>", unsafe_allow_html=True)
+                                st.markdown(f"<div class='{meta_cls}' style='min-height:{meta_min_h}px;'><code>{html.escape(grade)}級</code> ｜ {html.escape(struct_short)}</div>", unsafe_allow_html=True)
+                            with c_card2:
+                                if st.button("🔍 檢視", key=f"pick_{r['口卡編號']}", use_container_width=True, type="primary"):
+                                    st.session_state.selected_slope_id = r['口卡編號']
+                                    st.rerun()
 
 # ==============================================================================
 # 頁面 2：定量定性分級統計
