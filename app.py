@@ -603,13 +603,13 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
             for idx, (_, r) in enumerate(display_target_df.iterrows()):
                 grade = str(r['定性分級'])
                 quant_g = r.get('定量分級', '未施作')
-                struct_short = str(r.get('邊坡構造物', '自然邊坡'))[:12]
+                struct_short = str(r.get('邊坡構造物', '自然邊坡'))
                 with grid_cols[idx % 2]:
                     with st.container(border=True):
                         c_card1, c_card2 = st.columns([0.62, 0.38])
                         with c_card1:
                             st.markdown(f"<span class='route-green-text'>📍 {r['路線']} {r['里程樁號(起)']}</span>", unsafe_allow_html=True)
-                            st.caption(f"`{grade}級` ｜ `{struct_short}`")
+                            st.caption(f"`{grade}級` ｜ {struct_short}")
                         with c_card2:
                             if st.button("🔍 檢視", key=f"pick_{r['口卡編號']}", use_container_width=True, type="primary"):
                                 st.session_state.selected_slope_id = r['口卡編號']
