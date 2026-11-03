@@ -270,6 +270,9 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     html body .stApp input[type="text"], html body .stApp textarea { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; font-size: 15px !important; font-weight: 600 !important; }
 
     .app-card { background: var(--card-bg) !important; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; border: 1px solid var(--card-border) !important; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    .slope-card-heading { display: flex; align-items: center; justify-content: space-between; gap: 6px 10px; flex-wrap: wrap; }
+    .slope-card-heading .route-green-text { min-width: 0; }
+    .slope-direction-badge { flex-shrink: 0; white-space: nowrap; margin-left: auto; padding: 2px 8px; border: 1px solid var(--card-border); border-radius: 6px; background: var(--card-bg); color: var(--text-main) !important; font-size: 13px; line-height: 20px; font-weight: 700; }
     .slope-card-meta { font-size: 13px; line-height: 19px; color: var(--text-muted) !important; margin-top: 2px; word-break: break-word; }
     .slope-card-meta code { background: rgba(100,116,139,0.15); color: var(--text-main) !important; padding: 1px 6px; border-radius: 6px; font-size: 12px; }
     .slope-card-meta-sm { font-size: 12px; }
