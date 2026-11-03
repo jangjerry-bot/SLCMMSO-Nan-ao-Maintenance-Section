@@ -657,13 +657,16 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 grid_cols = st.columns(2)
                 for col_idx, (_, r) in enumerate(pair):
                     grade = str(r['定性分級'])
+                    slope_direction = r.get('邊坡方向', '')
+                    direction_text = str(slope_direction).strip() if pd.notna(slope_direction) else ''
+                    direction_text = direction_text or '方向未填'
                     struct_short = str(r.get('邊坡構造物', '自然邊坡'))
                     meta_cls = 'slope-card-meta slope-card-meta-sm' if len(struct_short) > 32 else 'slope-card-meta'
                     with grid_cols[col_idx]:
                         with st.container(border=True):
                             c_card1, c_card2 = st.columns([0.62, 0.38])
                             with c_card1:
-                                st.markdown(f"<span class='route-green-text'>📍 {r['路線']} {r['里程樁號(起)']}</span>", unsafe_allow_html=True)
+                                st.markdown(f"<div class='slope-card-heading'><span class='route-green-text'>📍 {html.escape(str(r['路線']))} {html.escape(str(r['里程樁號(起)']))}</span><span class='slope-direction-badge'>{html.escape(direction_text)}</span></div>", unsafe_allow_html=True)
                                 st.markdown(f"<div class='{meta_cls}' style='min-height:{meta_min_h}px;'><code>{html.escape(grade)}級</code> ｜ {html.escape(struct_short)}</div>", unsafe_allow_html=True)
                             with c_card2:
                                 if st.button("🔍 檢視", key=f"pick_{r['口卡編號']}", use_container_width=True, type="primary"):
