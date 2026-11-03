@@ -140,6 +140,31 @@ def normalize_quant(val):
         if num in s or zh in s: return f"第{num}級"
     return "未施作"
 
+
+def format_site_desc(text):
+    """把「現地狀況描述」中長短不一的 ----- 手動分隔符號，整理成整齊的事件區塊。
+    只改變網頁呈現，Excel 原始資料不動；之後同格式的 Excel 更新會自動套用。
+    資料中實際分隔線為連續 15~73 個 '-'，此處以 6 個以上判定為分隔；
+    「災害編號：--」這類缺值只有 2 個 '-'，不會被誤判。"""
+    s = str(text).strip()
+    if not s or s.lower() in ("nan", "none"):
+        return html.escape("無描述紀錄")
+    parts = [p.strip() for p in re.split(r"\s*-{6,}\s*", s) if p.strip()]
+    if not parts:
+        return html.escape(s)
+    label_pat = re.compile(
+        r"(預定開始施作時間：|預定完成施作時間：|開始施作時間：|完成施作時間："
+        r"|災害與時間：|災害編號：|施作項目：|災點：)"
+    )
+    blocks = []
+    for p in parts:
+        esc = html.escape(p)
+        esc = label_pat.sub(r"<br>\1", esc)
+        if esc.startswith("<br>"):
+            esc = esc[4:]
+        blocks.append(f"<div class='site-desc-event'>{esc}</div>")
+    return "".join(blocks)
+
 @st.cache_data
 def load_data():
     if not os.path.exists(DATA_FILE): return pd.DataFrame()
@@ -545,7 +570,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                 ]
                 rows_html = "".join([f"<div class='detail-row'><span class='detail-label'>{k}</span><span class='detail-value'>{v}</span></div>" for k, v in detail_fields])
                 st.markdown(f"<div class='app-card notranslate' translate='no'>{rows_html}</div>", unsafe_allow_html=True)
-                st.markdown(f"<div class='app-card notranslate' translate='no' style='background:var(--card-bg); border-left:4px solid #4A6B82; line-height:1.6; font-size:14px; height:415px; overflow-y:auto;'><b>現地狀況描述：</b><br><div style='margin-top:6px;'>{row.get('現地狀況描述', '無描述紀錄')}</div></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='app-card notranslate' translate='no' style='background:var(--card-bg); border-left:4px solid #4A6B82; line-height:1.6; font-size:14px; height:415px; overflow-y:auto;'><b>現地狀況描述：</b><br><div style='margin-top:2px;'>{format_site_desc(row.get('現地狀況描述', '無描述紀錄'))}</div></div>", unsafe_allow_html=True)
     else:
         with st.container(border=True):
             c_f1, c_f2, c_f3, c_f4 = st.columns([1.1, 1.1, 1.8, 1.1])
