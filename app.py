@@ -165,6 +165,24 @@ def format_site_desc(text):
         blocks.append(f"<div class='site-desc-event'>{esc}</div>")
     return "".join(blocks)
 
+
+def format_disaster_history(history, nearby):
+    """把「災害歷史 / 附近地名」中長短不一的 ----- 手動分隔符號，比照現地狀況描述整理成整齊的虛線事件區塊。
+    只改變網頁呈現，Excel 原始資料不動；之後同格式的 Excel 更新會自動套用。
+    資料中實際分隔線為連續 16~21 個 '-'，此處以 6 個以上判定為分隔；
+    附近地名維持接在最後一筆事件之後，文字內容與順序完整保留。"""
+    s = str(history).strip()
+    if not s or s.lower() in ("nan", "none"):
+        s = "無"
+    near = str(nearby).strip()
+    if not near or near.lower() in ("nan", "none"):
+        near = "無"
+    parts = [p.strip() for p in re.split(r"\s*-{6,}\s*", s) if p.strip()]
+    if not parts:
+        parts = [s]
+    parts[-1] = f"{parts[-1]} / {near}"
+    return "".join(f"<div class='disaster-event'>{html.escape(p)}</div>" for p in parts)
+
 @st.cache_data
 def load_data():
     if not os.path.exists(DATA_FILE): return pd.DataFrame()
@@ -566,7 +584,7 @@ if st.session_state.bottom_tab == "📋 邊坡清冊":
                     ("邊坡方向", str(row.get('邊坡方向', '無'))),
                     ("坡高 / 坡度 / 面寬", f"{row.get('坡高', '')}m / {row.get('坡度', '')}° / {row.get('邊坡面寬', '')}m"),
                     ("定性 / RHRS定量分級", f"{q_grade}級 / {row.get('定量分級', '未施作')}"),
-                    ("災害歷史 / 附近地名", f"{row.get('災害歷史', '無')} / {row.get('附近地名', '無')}"),
+                    ("災害歷史 / 附近地名", format_disaster_history(row.get('災害歷史', '無'), row.get('附近地名', '無'))),
                 ]
                 rows_html = "".join([f"<div class='detail-row'><span class='detail-label'>{k}</span><span class='detail-value'>{v}</span></div>" for k, v in detail_fields])
                 st.markdown(f"<div class='app-card notranslate' translate='no'>{rows_html}</div>", unsafe_allow_html=True)
