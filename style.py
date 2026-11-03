@@ -277,6 +277,8 @@ def get_theme_css(is_light: bool, show_splash: bool = True) -> str:
     .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--card-border) !important; font-size: 14px; line-height: 1.4; color: var(--text-main) !important; }
     .detail-label { color: var(--text-muted) !important; font-weight: 600; width: 42%; }
     .detail-value { font-weight: 700; width: 58%; text-align: right; word-break: break-all; color: var(--text-main) !important; }
+    .site-desc-event { padding: 10px 2px; }
+    .site-desc-event + .site-desc-event { border-top: 2px dashed var(--card-border); margin-top: 2px; }
     
     .badge { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 13px; font-weight: 800; color: #ffffff !important; }
     .badge-A { background-color: #c05646; } .badge-B { background-color: #d9822b; } .badge-Cplus { background-color: #7c3aed; } .badge-C { background-color: #4A6B82; } .badge-D { background-color: #52796f; } .badge-其他 { background-color: #64748b; }
